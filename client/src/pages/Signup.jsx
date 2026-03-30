@@ -1,0 +1,270 @@
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
+import signupImage from "../assets/auth-illustration.png";
+
+const Signup = () => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    agreeTerms: false
+  });
+  
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validation
+    if (!formData.agreeTerms) {
+      setMessage({ type: "error", text: "You must agree to the terms and conditions" });
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setMessage({ type: "error", text: "Passwords do not match" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage({ type: "", text: "" });
+
+      const response = await axios.post('http://localhost:5050/api/auth/register', {
+        fullName: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      });
+
+      if (response.data.success) {
+        setMessage({ 
+          type: "success", 
+          text: "Account created successfully! You can now login." 
+        });
+        
+        // Reset form
+        setFormData({
+          fullName: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          agreeTerms: false
+        });
+
+        setTimeout(() => {
+    navigate("/login");
+  }, 2000);
+        
+      }
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      if (error.response) {
+        setMessage({ 
+          type: "error", 
+          text: error.response.data.message || "Registration failed" 
+        });
+      } else if (error.request) {
+        setMessage({ 
+          type: "error", 
+          text: "Cannot connect to server. Please try again." 
+        });
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: "An unexpected error occurred" 
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
+      
+      {/* LEFT SIDE - FORM */}
+      <div className="flex items-center justify-center px-6">
+        <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+          
+          <h2 className="text-2xl font-bold text-center">Sign Up</h2>
+          <p className="text-sm text-gray-500 text-center mt-1">
+            Create your account to continue
+          </p>
+
+          {/* Status Message */}
+          {message.text && (
+            <div className={`mt-4 p-3 rounded-lg text-sm ${
+              message.type === 'success' 
+                ? 'bg-green-100 text-green-700 border border-green-200' 
+                : 'bg-red-100 text-red-700 border border-red-200'
+            }`}>
+              {message.text}
+            </div>
+          )}
+
+          {/* Google Signup */}
+          <button className="w-full mt-4 flex items-center justify-center gap-2 border border-gray-300 py-2 rounded-lg hover:bg-gray-100 transition">
+            <img
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              alt="Google"
+              className="w-5 h-5"
+            />
+            <span className="text-sm font-medium">
+              Sign up with Google
+            </span>
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center my-5">
+            <div className="flex-grow h-px bg-gray-300"></div>
+            <span className="px-3 text-sm text-gray-400">or</span>
+            <div className="flex-grow h-px bg-gray-300"></div>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                placeholder="Enter your full name"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Create Password
+              </label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Create a password (min. 6 characters)"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                minLength="6"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm your password"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                required
+              />
+            </div>
+
+            <div className="flex items-start gap-2 text-sm">
+              <input 
+                type="checkbox" 
+                name="agreeTerms"
+                checked={formData.agreeTerms}
+                onChange={handleChange}
+                className="mt-1" 
+                required
+              />
+              <p>
+                I agree to the{" "}
+                <span className="text-blue-600 cursor-pointer">
+                  Terms and Conditions
+                </span>
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Creating Account...
+                </span>
+              ) : (
+                "Create Account"
+              )}
+            </button>
+          </form>
+
+          <p className="text-sm text-center mt-5">
+  Already have an account?{" "}
+  <Link
+    to="/login"
+    className="text-blue-600 hover:underline cursor-pointer"
+  >
+    Login here
+  </Link>
+</p>
+        </div>
+      </div>
+
+      {/* RIGHT SIDE - INFO */}
+      <div className="hidden lg:flex flex-col items-center justify-center bg-blue-600 text-white px-10">
+        <img
+          src={signupImage}
+          alt="Professional Service"
+          className="w-80 mb-6"
+        />
+        <h3 className="text-xl font-semibold">
+          Professional Local Services
+        </h3>
+        <p className="text-center text-sm mt-3 max-w-sm">
+          Join thousands of professionals who trust ServEase for their
+          local service needs. Get started today and experience the difference.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default Signup;
