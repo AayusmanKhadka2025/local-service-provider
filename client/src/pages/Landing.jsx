@@ -92,22 +92,22 @@ export default function Landing() {
 
   const testimonials = [
     {
-      name: "Sarah Johnson",
-      role: "Homeowner, San Francisco",
+      name: "Ritika Pokharel",
+      role: "Homeowner, Kathmandu",
       image: sarahImage,
       rating: 5,
       text: "Amazing service! The plumber arrived on time, fixed my leaking pipes quickly, and the price was exactly as quoted. Highly recommend ServEase!",
     },
     {
-      name: "Michael Chen",
-      role: "Business Owner, New York",
+      name: "Roshan Shrestha",
+      role: "Business Owner, Bhaktapur",
       image: michaelImage,
       rating: 5,
       text: "I needed an electrician urgently and ServEase connected me with a verified professional within hours. Great platform with reliable service providers!",
     },
     {
-      name: "Emily Rodriguez",
-      role: "Apartment Owner, Austin",
+      name: "Sunita Dangol",
+      role: "Apartment Owner, Lalitpur",
       image: emilyImage,
       rating: 5,
       text: "The painter did an incredible job on my living room. The booking process was smooth and the customer support team was very helpful throughout.",
@@ -146,16 +146,14 @@ export default function Landing() {
       <header className="w-full bg-white/90 backdrop-blur-sm sticky top-0 z-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           {/* Logo - Improved with gradient */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg">
               <Home className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-                ServEase
-              </h1>
-              <p className="text-xs text-gray-500 -mt-1">Trusted Services</p>
-            </div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              ServEase
+            </h1>
           </Link>
 
           {/* Auth Buttons */}
@@ -522,15 +520,15 @@ export default function Landing() {
               <ul className="space-y-4 text-sm">
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <Mail className="w-4 h-4 text-blue-400" />
-                  support@servease.com
+                  serveease2082@gmail.com
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <Phone className="w-4 h-4 text-blue-400" />
-                  1-800-SERVEASE
+                  9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <MapPinIcon className="w-4 h-4 text-blue-400" />
-                  San Francisco, CA
+                  Basantapur, Kathmandu
                 </li>
               </ul>
 
