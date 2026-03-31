@@ -145,7 +145,6 @@ export default function Landing() {
       {/* ================= NAVBAR ================= */}
       <header className="w-full bg-white/90 backdrop-blur-sm sticky top-0 z-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Logo - Improved with gradient */}
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg">

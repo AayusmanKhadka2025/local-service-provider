@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import { Home } from "lucide-react";
 import authImage from "../assets/auth-illustration.png";
 
 const Login = () => {
@@ -150,6 +151,15 @@ const Login = () => {
       {/* LEFT - LOGIN FORM */}
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+          {/* Logo - Top Left inside card */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+              <Home className="w-5 h-5 text-white" />
+            </div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              ServEase
+            </h2>
+          </div>
           <h2 className="text-2xl font-bold text-center">Welcome Back</h2>
           <p className="text-sm text-gray-500 text-center mt-1">
             Log in to your account to continue

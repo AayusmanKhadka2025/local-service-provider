@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Home } from "lucide-react";
 import axios from "axios";
 import signupImage from "../assets/auth-illustration.png";
 
@@ -10,26 +11,31 @@ const Signup = () => {
     email: "",
     password: "",
     confirmPassword: "",
-    agreeTerms: false
+    agreeTerms: false,
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.agreeTerms) {
-      setMessage({ type: "error", text: "You must agree to the terms and conditions" });
+      setMessage({
+        type: "error",
+        text: "You must agree to the terms and conditions",
+      });
       return;
     }
 
@@ -38,55 +44,61 @@ const Signup = () => {
       return;
     }
 
+    if (formData.password.length < 6) {
+      setMessage({ type: "error", text: "Password must be at least 6 characters" });
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage({ type: "", text: "" });
 
-      const response = await axios.post('http://localhost:5050/api/auth/register', {
-        fullName: formData.fullName,
-        email: formData.email,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword
-      });
+      const response = await axios.post(
+        "http://localhost:5050/api/auth/register",
+        {
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+        }
+      );
 
       if (response.data.success) {
-        setMessage({ 
-          type: "success", 
-          text: "Account created successfully! You can now login." 
+        setMessage({
+          type: "success",
+          text: "Account created successfully! You can now login.",
         });
-        
+
         // Reset form
         setFormData({
           fullName: "",
           email: "",
           password: "",
           confirmPassword: "",
-          agreeTerms: false
+          agreeTerms: false,
         });
 
         setTimeout(() => {
-    navigate("/login");
-  }, 2000);
-        
+          navigate("/login");
+        }, 2000);
       }
-
     } catch (error) {
-      console.error('Registration error:', error);
-      
+      console.error("Registration error:", error);
+
       if (error.response) {
-        setMessage({ 
-          type: "error", 
-          text: error.response.data.message || "Registration failed" 
+        setMessage({
+          type: "error",
+          text: error.response.data.message || "Registration failed",
         });
       } else if (error.request) {
-        setMessage({ 
-          type: "error", 
-          text: "Cannot connect to server. Please try again." 
+        setMessage({
+          type: "error",
+          text: "Cannot connect to server. Please try again.",
         });
       } else {
-        setMessage({ 
-          type: "error", 
-          text: "An unexpected error occurred" 
+        setMessage({
+          type: "error",
+          text: "An unexpected error occurred",
         });
       }
     } finally {
@@ -96,11 +108,18 @@ const Signup = () => {
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
-      
       {/* LEFT SIDE - FORM */}
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          
+          {/* Logo - Top Left inside card */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+              <Home className="w-5 h-5 text-white" />
+            </div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+              ServEase
+            </h2>
+          </div>
           <h2 className="text-2xl font-bold text-center">Sign Up</h2>
           <p className="text-sm text-gray-500 text-center mt-1">
             Create your account to continue
@@ -108,11 +127,13 @@ const Signup = () => {
 
           {/* Status Message */}
           {message.text && (
-            <div className={`mt-4 p-3 rounded-lg text-sm ${
-              message.type === 'success' 
-                ? 'bg-green-100 text-green-700 border border-green-200' 
-                : 'bg-red-100 text-red-700 border border-red-200'
-            }`}>
+            <div
+              className={`mt-4 p-3 rounded-lg text-sm ${
+                message.type === "success"
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-red-100 text-red-700 border border-red-200"
+              }`}
+            >
               {message.text}
             </div>
           )}
@@ -124,9 +145,7 @@ const Signup = () => {
               alt="Google"
               className="w-5 h-5"
             />
-            <span className="text-sm font-medium">
-              Sign up with Google
-            </span>
+            <span className="text-sm font-medium">Sign up with Google</span>
           </button>
 
           {/* Divider */}
@@ -138,7 +157,6 @@ const Signup = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             <div>
               <label className="block text-sm font-medium mb-1">
                 Full Name
@@ -151,6 +169,7 @@ const Signup = () => {
                 placeholder="Enter your full name"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -166,48 +185,128 @@ const Signup = () => {
                 placeholder="Enter your email"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 required
+                disabled={loading}
               />
             </div>
 
+            {/* Password Field with Eye Icon - Same as Login page */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Create Password
               </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Create a password (min. 6 characters)"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                minLength="6"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Create a password (min. 6 characters)"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 outline-none"
+                  minLength="6"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path
+                        fillRule="evenodd"
+                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+                        clipRule="evenodd"
+                      />
+                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
+            {/* Confirm Password Field with Eye Icon - Same as Login page */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirm your password"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirm your password"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 outline-none"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path
+                        fillRule="evenodd"
+                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+                        clipRule="evenodd"
+                      />
+                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-start gap-2 text-sm">
-              <input 
-                type="checkbox" 
+              <input
+                type="checkbox"
                 name="agreeTerms"
                 checked={formData.agreeTerms}
                 onChange={handleChange}
-                className="mt-1" 
+                className="mt-1"
                 required
+                disabled={loading}
               />
               <p>
                 I agree to the{" "}
@@ -224,9 +323,25 @@ const Signup = () => {
             >
               {loading ? (
                 <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    className="animate-spin h-5 w-5 mr-2 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                   Creating Account...
                 </span>
@@ -237,14 +352,14 @@ const Signup = () => {
           </form>
 
           <p className="text-sm text-center mt-5">
-  Already have an account?{" "}
-  <Link
-    to="/login"
-    className="text-blue-600 hover:underline cursor-pointer"
-  >
-    Login here
-  </Link>
-</p>
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="text-blue-600 hover:underline cursor-pointer"
+            >
+              Login here
+            </Link>
+          </p>
         </div>
       </div>
 
@@ -255,12 +370,10 @@ const Signup = () => {
           alt="Professional Service"
           className="w-80 mb-6"
         />
-        <h3 className="text-xl font-semibold">
-          Professional Local Services
-        </h3>
+        <h3 className="text-xl font-semibold">Professional Local Services</h3>
         <p className="text-center text-sm mt-3 max-w-sm">
-          Join thousands of professionals who trust ServEase for their
-          local service needs. Get started today and experience the difference.
+          Join thousands of professionals who trust ServEase for their local
+          service needs. Get started today and experience the difference.
         </p>
       </div>
     </div>
