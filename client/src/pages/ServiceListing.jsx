@@ -580,15 +580,15 @@ export default function ServiceListing() {
               <ul className="space-y-4 text-sm">
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <Mail className="w-4 h-4 text-blue-400" />
-                  support@servease.com
+                  serveease2082@gmail.com
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <Phone className="w-4 h-4 text-blue-400" />
-                  1-800-SERVEASE
+                  +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <MapPinIcon className="w-4 h-4 text-blue-400" />
-                  San Francisco, CA
+                  Basantapur, Kathmandu
                 </li>
               </ul>
 

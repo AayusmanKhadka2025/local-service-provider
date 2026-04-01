@@ -912,7 +912,7 @@ export default function BookingPage() {
                   serveease2082@gmail.com
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <Phone className="w-4 h-4 text-blue-400" /> 9812021764
+                  <Phone className="w-4 h-4 text-blue-400" /> +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
                   <MapPinIcon className="w-4 h-4 text-blue-400" /> San

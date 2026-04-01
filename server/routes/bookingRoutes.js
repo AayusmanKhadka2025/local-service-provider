@@ -1,3 +1,4 @@
+// server/routes/bookingRoutes.js
 const express = require('express');
 const router = express.Router();
 const { protectUser } = require('../middleware/auth');
@@ -7,12 +8,14 @@ const {
   getUserBookings,
   getProviderBookings,
   updateBookingStatus,
-  getProviderNotifications
+  getProviderNotifications,
+  addUserReview
 } = require('../controllers/bookingController');
 
 // User routes
 router.post('/create', protectUser, createBooking);
 router.get('/user', protectUser, getUserBookings);
+router.post('/review', protectUser, addUserReview); // User adds review
 
 // Provider routes
 router.get('/provider', protectProvider, getProviderBookings);

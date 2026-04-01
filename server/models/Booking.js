@@ -1,3 +1,4 @@
+// server/models/Booking.js
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
@@ -17,11 +18,15 @@ const bookingSchema = new mongoose.Schema({
     },
     phone: {
       type: String,
-      default: '' // Make phone optional with default empty string
+      default: ''
     },
     address: {
       type: String,
       required: true
+    },
+    avatar: {
+      type: String,
+      default: ''
     }
   },
   provider: {
@@ -41,6 +46,10 @@ const bookingSchema = new mongoose.Schema({
     hourlyRate: {
       type: Number,
       required: true
+    },
+    avatar: {
+      type: String,
+      default: ''
     }
   },
   service: {
@@ -67,6 +76,17 @@ const bookingSchema = new mongoose.Schema({
   totalAmount: {
     type: Number,
     required: true
+  },
+  // User review fields
+  rating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: null
+  },
+  review: {
+    type: String,
+    default: ''
   },
   createdAt: {
     type: Date,

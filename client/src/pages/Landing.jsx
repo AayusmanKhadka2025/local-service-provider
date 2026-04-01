@@ -523,7 +523,7 @@ export default function Landing() {
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <Phone className="w-4 h-4 text-blue-400" />
-                  9812021764
+                  +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition-colors">
                   <MapPinIcon className="w-4 h-4 text-blue-400" />
