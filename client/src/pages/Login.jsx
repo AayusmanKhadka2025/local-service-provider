@@ -67,7 +67,7 @@ const Login = () => {
           });
 
           setTimeout(() => {
-            navigate("/dashboard");
+            navigate("/service-listing");
           }, 1000);
           return;
         }
@@ -151,7 +151,7 @@ const Login = () => {
       {/* LEFT - LOGIN FORM */}
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          {/* Logo - Top Left inside card */}
+          {/* Logo */}
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
               <Home className="w-5 h-5 text-white" />
