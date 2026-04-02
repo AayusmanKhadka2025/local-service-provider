@@ -32,12 +32,15 @@ import {
   ArrowLeft,
   AlertCircle,
   Check,
+  ThumbsUp
 } from "lucide-react";
 
 export default function BookingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [provider, setProvider] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState("11:30 AM");
   const [showManualInput, setShowManualInput] = useState(false);
@@ -67,7 +70,7 @@ export default function BookingPage() {
         if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
           avatarUrl = `http://localhost:5050${avatarUrl}`;
         } else if (!avatarUrl) {
-          avatarUrl = `https://i.pravatar.cc/100?u=${userData.email || "user"}`;
+          avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
         }
         setUser({
           ...userData,
@@ -88,6 +91,30 @@ export default function BookingPage() {
       navigate("/service-listing");
     }
   }, [location, navigate]);
+
+  // Fetch reviews for this provider
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!provider?._id) return;
+      
+      try {
+        setLoadingReviews(true);
+        const response = await axios.get(
+          `http://localhost:5050/api/bookings/provider/reviews/${provider._id}`
+        );
+        
+        if (response.data.success) {
+          setReviews(response.data.reviews);
+        }
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+    
+    fetchReviews();
+  }, [provider]);
 
   // Smooth scroll to top on page load
   useEffect(() => {
@@ -402,6 +429,39 @@ export default function BookingPage() {
     );
   };
 
+  const formatReviewDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  // Get user avatar for review - Now fetches real user profile image
+  const getReviewerImage = (userEmail, userName) => {
+    // First check if there's a stored avatar in localStorage for this user
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const currentUser = JSON.parse(storedUser);
+        // If the review is from the current logged-in user, use their avatar
+        if (currentUser.email === userEmail && currentUser.avatar) {
+          let avatarUrl = currentUser.avatar;
+          if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
+            avatarUrl = `http://localhost:5050${avatarUrl}`;
+          }
+          return avatarUrl;
+        }
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+      }
+    }
+    
+    // Fallback to UI Avatars API with user's name
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=3b82f6&color=fff&size=80&bold=true`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Success Popup */}
@@ -440,16 +500,16 @@ export default function BookingPage() {
               <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
             </button>
 
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg transition-transform hover:scale-105 duration-300">
-              <Home className="w-5 h-5 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg transition-transform hover:scale-105 duration-300">
+                <Home className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                  ServEase
+                </h1>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
-                ServEase
-              </h1>
-            </div>
-          </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -465,7 +525,7 @@ export default function BookingPage() {
                 className="w-10 h-10 rounded-full object-cover border-2 border-blue-100 cursor-pointer hover:scale-105 transition-all duration-300 hover:shadow-md"
                 alt="Profile"
                 onError={(e) => {
-                  e.target.src = "https://i.pravatar.cc/100?u=user";
+                  e.target.src = "https://ui-avatars.com/api/?name=" + encodeURIComponent(user?.fullName || "User") + "&background=3b82f6&color=fff&size=100";
                 }}
               />
             </Link>
@@ -475,7 +535,6 @@ export default function BookingPage() {
 
       {/* MAIN */}
       <div ref={mainContentRef} className="max-w-7xl mx-auto px-6 py-10">
-
         <div className="grid lg:grid-cols-3 gap-8">
           {/* LEFT - Provider Details */}
           <div className="lg:col-span-2 space-y-6">
@@ -548,51 +607,63 @@ export default function BookingPage() {
               </div>
             </div>
 
-            {/* REVIEWS SECTION */}
+            {/* REVIEWS SECTION - With real user profile images */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-blue-600" /> Client
                   Reviews
                 </h3>
-                <button className="text-blue-600 text-sm font-medium hover:text-blue-700">
-                  View All →
-                </button>
               </div>
-              <div className="space-y-4">
-                <div className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-gray-800">
-                        Sarah Jenkins
-                      </h4>
-                      <p className="text-xs text-gray-400">Oct 12, 2023</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {renderStars(5)}
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Excellent service! {provider.firstName} was professional,
-                    punctual, and did an amazing job.
+              
+              {loadingReviews ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <ThumbsUp className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No reviews yet</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Be the first to leave a review after booking!
                   </p>
                 </div>
-                <div className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-gray-800">David Chen</h4>
-                      <p className="text-xs text-gray-400">Sep 28, 2023</p>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review, index) => (
+                    <div key={index} className="border border-gray-100 rounded-xl p-4 hover:shadow-md transition-all duration-300">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={getReviewerImage(review.userEmail, review.userName)}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                          alt={review.userName}
+                          onError={(e) => {
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName)}&background=3b82f6&color=fff&size=80&bold=true`;
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">
+                                {review.userName}
+                              </h4>
+                              <p className="text-xs text-gray-400">
+                                {formatReviewDate(review.createdAt)}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {renderStars(review.rating)}
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-2">
+                            "{review.review}"
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                      {renderStars(5)}
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    Very professional and knowledgeable. Will definitely hire
-                    again!
-                  </p>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
 
             {/* OVERVIEW / GUARANTEES */}
@@ -947,6 +1018,19 @@ export default function BookingPage() {
           </div>
         </div>
       </footer>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.9); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+      `}</style>
     </div>
   );
 }

@@ -514,6 +514,99 @@ const getProviderNotifications = async (req, res) => {
   }
 };
 
+// Cancel booking (User action - only for pending bookings)
+const cancelBooking = async (req, res) => {
+  try {
+    const { bookingId } = req.body;
+    const userId = req.userId;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Verify this booking belongs to the user
+    if (booking.user.userId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized to cancel this booking",
+      });
+    }
+
+    // Only allow cancellation for pending bookings
+    if (booking.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "Only pending bookings can be cancelled",
+      });
+    }
+
+    booking.status = "cancelled";
+    booking.updatedAt = new Date();
+    await booking.save();
+
+    const formattedBooking = {
+      ...booking.toObject(),
+      user: {
+        ...booking.user,
+        avatar: getFullImageUrl(booking.user.avatar),
+      },
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Booking cancelled successfully",
+      booking: formattedBooking,
+    });
+  } catch (error) {
+    console.error("Cancel booking error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Get all reviews for a provider
+const getProviderReviews = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    
+    const reviews = await Booking.find({
+      'provider.providerId': providerId,
+      status: 'completed',
+      rating: { $exists: true, $ne: null }
+    })
+    .sort({ createdAt: -1 })
+    .select('user.name user.email rating review createdAt');
+    
+    const formattedReviews = reviews.map(review => ({
+      userName: review.user.name,
+      userEmail: review.user.email,
+      rating: review.rating,
+      review: review.review,
+      createdAt: review.createdAt
+    }));
+    
+    res.status(200).json({
+      success: true,
+      reviews: formattedReviews
+    });
+  } catch (error) {
+    console.error('Get provider reviews error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+
 module.exports = {
   createBooking,
   getUserBookings,
@@ -521,6 +614,8 @@ module.exports = {
   updateBookingStatus,
   startService,
   completeService,
+  cancelBooking, 
   getProviderNotifications,
   addUserReview,
+  getProviderReviews,
 };
