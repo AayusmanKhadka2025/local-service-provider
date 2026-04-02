@@ -70,12 +70,34 @@ const bookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'completed', 'rejected', 'cancelled'],
+    enum: ['pending', 'confirmed', 'in_progress', 'completed', 'rejected', 'cancelled'],
     default: 'pending'
   },
   totalAmount: {
     type: Number,
     required: true
+  },
+  // Service tracking fields
+  startTime: {
+    type: Date,
+    default: null
+  },
+  endTime: {
+    type: Date,
+    default: null
+  },
+  duration: {
+    type: Number, // Duration in hours
+    default: 0
+  },
+  // server/models/Booking.js - Add this field if you want to store hours charged
+hoursCharged: {
+  type: Number,
+  default: 0
+},
+  calculatedAmount: {
+    type: Number,
+    default: 0
   },
   // User review fields
   rating: {
