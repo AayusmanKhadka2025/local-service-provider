@@ -7,6 +7,7 @@ import ProviderRegister from "./pages/ProviderRegister";
 import ProviderDashboard from "./pages/ProviderDashboard";
 import ServiceListing from "./pages/ServiceListing";
 import BookingPage from "./pages/BookingPage";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
@@ -39,6 +40,16 @@ function App() {
           }
         />
 
+        {/* Booking Page Route - Protected */}
+        <Route
+          path="/provider-details/:id"
+          element={
+            <ProtectedRoute userType="user">
+              <BookingPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Provider Routes - Protected */}
         <Route
           path="/provider/dashboard"
@@ -49,8 +60,15 @@ function App() {
           }
         />
 
-        <Route path="/provider-details/:id" element={<BookingPage />} />
-
+        {/* Admin Routes - Protected */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute userType="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Router>
   );

@@ -50,6 +50,14 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // Check if provider is verified
+    if (!provider.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot book with unverified provider",
+      });
+    }
+
     // Validate date (no past dates)
     const bookingDate = new Date(date);
     const today = new Date();
@@ -575,37 +583,36 @@ const cancelBooking = async (req, res) => {
 const getProviderReviews = async (req, res) => {
   try {
     const { providerId } = req.params;
-    
+
     const reviews = await Booking.find({
-      'provider.providerId': providerId,
-      status: 'completed',
-      rating: { $exists: true, $ne: null }
+      "provider.providerId": providerId,
+      status: "completed",
+      rating: { $exists: true, $ne: null },
     })
-    .sort({ createdAt: -1 })
-    .select('user.name user.email rating review createdAt');
-    
-    const formattedReviews = reviews.map(review => ({
+      .sort({ createdAt: -1 })
+      .select("user.name user.email rating review createdAt");
+
+    const formattedReviews = reviews.map((review) => ({
       userName: review.user.name,
       userEmail: review.user.email,
       rating: review.rating,
       review: review.review,
-      createdAt: review.createdAt
+      createdAt: review.createdAt,
     }));
-    
+
     res.status(200).json({
       success: true,
-      reviews: formattedReviews
+      reviews: formattedReviews,
     });
   } catch (error) {
-    console.error('Get provider reviews error:', error);
+    console.error("Get provider reviews error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
-
 
 module.exports = {
   createBooking,
@@ -614,7 +621,7 @@ module.exports = {
   updateBookingStatus,
   startService,
   completeService,
-  cancelBooking, 
+  cancelBooking,
   getProviderNotifications,
   addUserReview,
   getProviderReviews,

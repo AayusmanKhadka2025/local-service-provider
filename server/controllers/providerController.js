@@ -21,11 +21,13 @@ const generateProviderToken = (providerId, email) => {
 // Get All Providers (for service listing)
 const getAllProviders = async (req, res) => {
   try {
-    const providers = await Provider.find({ isActive: true })
+    const providers = await Provider.find({ 
+      isActive: true,
+      isVerified: true  // Only show verified providers
+    })
       .select("-password -documents")
       .sort({ rating: -1, createdAt: -1 });
 
-    // Format providers for frontend
     const formattedProviders = providers.map((provider) => ({
       _id: provider._id,
       firstName: provider.firstName,
@@ -41,14 +43,11 @@ const getAllProviders = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage
-        ? `http://localhost:5050${provider.profileImage}`
-        : "",
+      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : "",
       rating: provider.rating || 0,
       totalReviews: provider.totalReviews || 0,
       completedJobs: provider.completedJobs || 0,
-      isActive: provider.isActive,
-      isVerified: provider.isVerified !== false, // Assuming providers are verified by default
+      isVerified: provider.isVerified,
       createdAt: provider.createdAt,
     }));
 
@@ -240,7 +239,7 @@ const registerProvider = async (req, res) => {
   }
 };
 
-// Provider Login
+// Provider Login - Check if verified
 const providerLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -265,6 +264,14 @@ const providerLogin = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Account is deactivated. Please contact support.",
+      });
+    }
+
+    // Check if provider is verified
+    if (!provider.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account is pending verification. Please wait for admin approval.",
       });
     }
 
@@ -298,13 +305,12 @@ const providerLogin = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage
-        ? `http://localhost:5050${provider.profileImage}`
-        : "",
+      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : "",
       rating: provider.rating,
       totalReviews: provider.totalReviews,
       completedJobs: provider.completedJobs,
       isActive: provider.isActive,
+      isVerified: provider.isVerified,
     };
 
     res.status(200).json({

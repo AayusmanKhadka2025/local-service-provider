@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 const ProtectedRoute = ({ children, userType }) => {
   const userToken = localStorage.getItem('token');
   const providerToken = localStorage.getItem('providerToken');
+  const adminToken = localStorage.getItem('adminToken');
   const storedUserType = localStorage.getItem('userType');
 
   // Check if user is logged in
@@ -15,6 +16,13 @@ const ProtectedRoute = ({ children, userType }) => {
   // Check if provider is logged in
   if (userType === 'provider') {
     if (!providerToken || storedUserType !== 'provider') {
+      return <Navigate to="/login" />;
+    }
+  }
+  
+  // Check if admin is logged in
+  if (userType === 'admin') {
+    if (!adminToken || storedUserType !== 'admin') {
       return <Navigate to="/login" />;
     }
   }

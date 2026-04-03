@@ -1,4 +1,3 @@
-// client/src/pages/ProviderDashboard.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -18,6 +17,7 @@ import {
   Calendar,
   MapPin,
   Phone,
+  Award,
   Briefcase,
   X,
   MessageSquare,
@@ -29,6 +29,9 @@ import {
   ChevronUp,
   AlertCircle,
   Play,
+  Hourglass,
+  TrendingUp,
+  Shield
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -98,6 +101,14 @@ const ProviderDashboard = () => {
     }, 3000);
   };
 
+  // ========== DEFINE handleLogout FIRST ==========
+  const handleLogout = () => {
+    localStorage.removeItem("provider");
+    localStorage.removeItem("providerToken");
+    localStorage.removeItem("userType");
+    navigate("/login");
+  };
+
   // Load provider data from localStorage
   useEffect(() => {
     const loadProviderData = () => {
@@ -115,13 +126,11 @@ const ProviderDashboard = () => {
         setProvider({
           firstName: providerData.firstName || "",
           lastName: providerData.lastName || "",
-          fullName:
-            `${providerData.firstName || ""} ${providerData.lastName || ""}`.trim(),
+          fullName: `${providerData.firstName || ""} ${providerData.lastName || ""}`.trim(),
           email: providerData.email || "",
           phone: providerData.phone || "",
           role: "Service Provider",
-          avatar:
-            providerData.profileImage ||
+          avatar: providerData.profileImage ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(providerData.firstName || "Provider")}&background=3b82f6&color=fff&size=100`,
           rating: providerData.rating || 0,
           category: providerData.category || "",
@@ -133,6 +142,7 @@ const ProviderDashboard = () => {
           hourlyRate: providerData.hourlyRate || 0,
           serviceArea: providerData.serviceArea || "",
           serviceTags: providerData.serviceTags || [],
+          isVerified: providerData.isVerified || false
         });
       } catch (error) {
         console.error("Error parsing provider data:", error);
@@ -167,6 +177,32 @@ const ProviderDashboard = () => {
 
     fetchBookings();
   }, []);
+
+  // ========== PENDING VERIFICATION CHECK (using handleLogout which is now defined) ==========
+  if (!loading && provider && !provider.isVerified) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Hourglass className="w-10 h-10 text-yellow-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Pending Verification</h2>
+          <p className="text-gray-600 mb-4">
+            Your account is awaiting admin approval. You will be notified once your account is verified.
+          </p>
+          <p className="text-sm text-gray-500">
+            This process usually takes 24-48 hours. Thank you for your patience.
+          </p>
+          <button
+            onClick={handleLogout}
+            className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -370,13 +406,6 @@ const ProviderDashboard = () => {
       suffix: "⭐",
     },
   ];
-
-  const handleLogout = () => {
-    localStorage.removeItem("provider");
-    localStorage.removeItem("providerToken");
-    localStorage.removeItem("userType");
-    navigate("/login");
-  };
 
   // Get visible bookings based on expanded state
   const getVisibleBookings = (bookingsList, isExpanded, itemsToShow = 4) => {
@@ -947,7 +976,6 @@ const BookingCard = ({
               <Clock className="w-3 h-3 ml-2" />
               <span>{booking.time}</span>
             </div>
-            {/* Show timing information for in-progress and completed bookings */}
             {(booking.status === "in_progress" ||
               booking.status === "completed") && (
               <div className="mt-2 pt-2 border-t border-gray-100">

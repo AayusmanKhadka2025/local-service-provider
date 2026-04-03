@@ -23,11 +23,10 @@ const Login = () => {
     }));
   };
 
-  // Unified Login API Call - Tries User first, then Provider
+  // Unified Login API Call - Tries User first, then Provider, then Admin
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
     if (!formData.email || !formData.password) {
       setMessage({ type: "error", text: "Email and password are required" });
       return;
@@ -44,21 +43,12 @@ const Login = () => {
           {
             email: formData.email,
             password: formData.password,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
+          }
         );
 
         if (userResponse.data.success) {
-          // User login successful
           localStorage.setItem("user", JSON.stringify(userResponse.data.user));
-          localStorage.setItem(
-            "token",
-            userResponse.data.token || "user-token",
-          );
+          localStorage.setItem("token", userResponse.data.token);
           localStorage.setItem("userType", "user");
 
           setMessage({
@@ -72,7 +62,6 @@ const Login = () => {
           return;
         }
       } catch (userError) {
-        // User login failed, try provider login
         console.log("User login failed, trying provider login...");
       }
 
@@ -83,26 +72,20 @@ const Login = () => {
           {
             email: formData.email,
             password: formData.password,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
+          }
         );
 
         if (providerResponse.data.success) {
-          // Provider login successful
           localStorage.setItem(
             "provider",
-            JSON.stringify(providerResponse.data.provider),
+            JSON.stringify(providerResponse.data.provider)
           );
           localStorage.setItem("providerToken", providerResponse.data.token);
           localStorage.setItem("userType", "provider");
 
           setMessage({
             type: "success",
-            text: "Welcome back! Redirecting to provider dashboard...",
+            text: "Login successful! Redirecting to dashboard...",
           });
 
           setTimeout(() => {
@@ -111,12 +94,40 @@ const Login = () => {
           return;
         }
       } catch (providerError) {
-        // In the catch block for provider login, remove the verification check
-        console.log("Provider login failed");
+        console.log("Provider login failed, trying admin login...");
+      }
 
-        // Check for account deactivation only (no verification check)
-        if (providerError.response?.status === 403) {
-          const errorMsg = providerError.response?.data?.message || "";
+      // If provider login fails, try admin login
+      try {
+        const adminResponse = await axios.post(
+          "http://localhost:5050/api/admin/login",
+          {
+            username: formData.email, // Admin uses username/email
+            password: formData.password,
+          }
+        );
+
+        if (adminResponse.data.success) {
+          localStorage.setItem("admin", JSON.stringify(adminResponse.data.admin));
+          localStorage.setItem("adminToken", adminResponse.data.token);
+          localStorage.setItem("userType", "admin");
+
+          setMessage({
+            type: "success",
+            text: "Login successful! Redirecting to dashboard...",
+          });
+
+          setTimeout(() => {
+            navigate("/admin/dashboard");
+          }, 1000);
+          return;
+        }
+      } catch (adminError) {
+        console.log("Admin login also failed");
+        
+        // Check for specific error messages
+        if (adminError.response?.status === 403) {
+          const errorMsg = adminError.response?.data?.message || "";
           if (errorMsg.includes("deactivated")) {
             setMessage({
               type: "error",
@@ -151,7 +162,7 @@ const Login = () => {
       {/* LEFT - LOGIN FORM */}
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          {/* Logo */}
+          {/* Logo - Top Left inside card */}
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
               <Home className="w-5 h-5 text-white" />
@@ -181,14 +192,14 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">
-                Email Address
+                Email or Username
               </label>
               <input
-                type="email"
+                type="text"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="Enter your email"
+                placeholder="Enter your email or username"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 required
                 disabled={loading}

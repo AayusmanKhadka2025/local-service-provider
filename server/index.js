@@ -9,6 +9,7 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const providerRoutes = require("./routes/providerRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes); // This is now properly placed after CORS
 app.use("/api/providers", providerRoutes);
+app.use('/api/admin', adminRoutes); // Add this line
 
 // Health check
 app.get("/health", (req, res) => {
@@ -60,6 +62,10 @@ mongoose
       fs.mkdirSync(uploadDir);
       console.log("✅ Uploads directory created");
     }
+
+    // Create initial admin
+    const { createInitialAdmin } = require('./controllers/adminController');
+    createInitialAdmin();
 
     const PORT = process.env.PORT || 5050; // Make sure this matches your .env
     app.listen(PORT, () => {
