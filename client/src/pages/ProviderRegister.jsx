@@ -622,10 +622,11 @@ export default function ProviderRegister() {
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-5">
+                  
                   <Input
                     icon={DollarSign}
                     name="hourlyRate"
-                    placeholder="Hourly Rate (e.g., 50)"
+                    placeholder="Hourly Rate (e.g., 500)"
                     type="number"
                     value={formData.hourlyRate}
                     onChange={handleInputChange}

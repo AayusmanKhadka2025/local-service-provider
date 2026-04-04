@@ -25,7 +25,7 @@ import {
   ChevronRight as ChevronRightIcon,
   DollarSign,
   User,
-  Camera
+  Camera,
 } from "lucide-react";
 
 export default function ServiceListing() {
@@ -48,13 +48,15 @@ export default function ServiceListing() {
     const fetchProviders = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:5050/api/providers/all');
+        const response = await axios.get(
+          "http://localhost:5050/api/providers/all",
+        );
         if (response.data.success) {
-          console.log('Fetched providers:', response.data.providers); // Debug log
+          console.log("Fetched providers:", response.data.providers); // Debug log
           setProviders(response.data.providers);
         }
       } catch (error) {
-        console.error('Error fetching providers:', error);
+        console.error("Error fetching providers:", error);
       } finally {
         setLoading(false);
       }
@@ -63,7 +65,7 @@ export default function ServiceListing() {
     fetchProviders();
 
     // Get current user
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -76,7 +78,6 @@ export default function ServiceListing() {
     "Carpentry",
     "Painting",
     "Cleaning",
-    
   ];
   const ratings = ["Any", "4.5", "4.0"];
 
@@ -87,9 +88,9 @@ export default function ServiceListing() {
   };
 
   const handleImageError = (providerId) => {
-    setImageErrors(prev => ({
+    setImageErrors((prev) => ({
       ...prev,
-      [providerId]: true
+      [providerId]: true,
     }));
   };
 
@@ -98,12 +99,12 @@ export default function ServiceListing() {
     if (imageErrors[provider._id]) {
       return `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`;
     }
-    
+
     // If profile image exists, use it
-    if (provider.profileImage && provider.profileImage !== '') {
+    if (provider.profileImage && provider.profileImage !== "") {
       return provider.profileImage;
     }
-    
+
     // Generate avatar from name
     return `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`;
   };
@@ -121,9 +122,10 @@ export default function ServiceListing() {
       provider.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       provider.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       provider.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (provider.serviceTags && provider.serviceTags.some(tag =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      ));
+      (provider.serviceTags &&
+        provider.serviceTags.some((tag) =>
+          tag.toLowerCase().includes(searchQuery.toLowerCase()),
+        ));
 
     return matchesCategory && matchesRating && matchesPrice && matchesSearch;
   });
@@ -249,7 +251,9 @@ export default function ServiceListing() {
           {/* Popular Tags */}
           <p className="text-sm text-gray-400 mt-6">
             Popular:{" "}
-            <span className="text-blue-600 cursor-pointer">Emergency Plumbing</span>
+            <span className="text-blue-600 cursor-pointer">
+              Emergency Plumbing
+            </span>
             , <span className="text-blue-600 cursor-pointer">AC Repair</span>,{" "}
             <span className="text-blue-600 cursor-pointer">House Cleaning</span>
             ,{" "}
@@ -346,14 +350,14 @@ export default function ServiceListing() {
                 <div className="flex gap-2">
                   <input
                     type="number"
-                    placeholder="$ Min"
+                    placeholder="Min"
                     value={priceMin}
                     onChange={(e) => setPriceMin(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
                   <input
                     type="number"
-                    placeholder="$ Max"
+                    placeholder="Max"
                     value={priceMax}
                     onChange={(e) => setPriceMax(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
@@ -449,22 +453,24 @@ export default function ServiceListing() {
 
                     {/* Description */}
                     <p className="text-sm text-gray-600 mt-3 line-clamp-2">
-                      {provider.description || "Professional service provider with years of experience in the industry."}
+                      {provider.description ||
+                        "Professional service provider with years of experience in the industry."}
                     </p>
 
                     {/* Tags */}
-                    {provider.serviceTags && provider.serviceTags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {provider.serviceTags.slice(0, 3).map((tag) => (
-                          <span
-                            key={tag}
-                            className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {provider.serviceTags &&
+                      provider.serviceTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {provider.serviceTags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                     {/* Location & Experience */}
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
@@ -483,7 +489,7 @@ export default function ServiceListing() {
                       <div>
                         <p className="text-xs text-gray-500">Hourly Rate</p>
                         <p className="text-lg font-bold text-gray-800">
-                          ${provider.hourlyRate || 0}
+                          Rs. {provider.hourlyRate || 0}
                           <span className="text-sm font-normal text-gray-500">
                             /hr
                           </span>

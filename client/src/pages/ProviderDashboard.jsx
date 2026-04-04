@@ -337,7 +337,7 @@ const ProviderDashboard = () => {
   };
 
   const formatPrice = (amount) => {
-    return `$${amount}`;
+    return `Rs. ${amount}`;
   };
 
   const renderStars = (rating) => {
@@ -617,15 +617,15 @@ const ProviderDashboard = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">Total Earnings</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">$4,250</p>
+                <p className="text-3xl font-bold text-gray-800 mt-2">Rs. 4,250</p>
               </div>
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">This Month</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">$1,280</p>
+                <p className="text-3xl font-bold text-gray-800 mt-2">Rs. 1,280</p>
               </div>
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">Average per Job</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">$145</p>
+                <p className="text-3xl font-bold text-gray-800 mt-2">Rs. 145</p>
                 <p className="text-xs text-gray-500 mt-2">
                   Based on {bookings.completed.length} completed jobs
                 </p>
@@ -672,7 +672,7 @@ const ProviderDashboard = () => {
                 <ProfileField label="Experience" value={provider.experience} />
                 <ProfileField
                   label="Hourly Rate"
-                  value={`$${provider.hourlyRate}/hr`}
+                  value={`Rs. ${provider.hourlyRate}/hr`}
                 />
                 <ProfileField
                   label="Service Area"
@@ -1010,10 +1010,7 @@ const BookingCard = ({
                   <p className="text-xs font-semibold text-green-600">
                     <span className="font-medium">Total:</span>{" "}
                     {formatPrice(booking.calculatedAmount)}
-                    <span className="text-gray-400 text-xs font-normal ml-1">
-                      (@ ${booking.provider?.hourlyRate}/hour ×{" "}
-                      {booking.hoursCharged} hours)
-                    </span>
+                    
                   </p>
                 )}
               </div>

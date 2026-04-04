@@ -8,7 +8,9 @@ const {
   getAllUsers,
   verifyProvider,
   rejectProvider,
-  deleteUser
+  deleteUser,
+  deleteProvider,
+  deleteProviderReview
 } = require('../controllers/adminController');
 
 // Public route
@@ -22,5 +24,8 @@ router.get('/users', getAllUsers);
 router.put('/providers/:providerId/verify', protectAdmin, verifyProvider);
 router.put('/providers/:providerId/reject', protectAdmin, rejectProvider);
 router.delete('/users/:userId', deleteUser);
+
+router.delete('/providers/:providerId', deleteProvider);
+router.delete('/providers/:providerId/reviews/:reviewId', deleteProviderReview);
 
 module.exports = router;

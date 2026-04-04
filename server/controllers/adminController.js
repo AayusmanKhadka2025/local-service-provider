@@ -1,15 +1,15 @@
-const Admin = require('../models/Admin');
-const User = require('../models/User');
-const Provider = require('../models/Provider');
-const Booking = require('../models/Booking'); // Add this import
-const jwt = require('jsonwebtoken');
+const Admin = require("../models/Admin");
+const User = require("../models/User");
+const Provider = require("../models/Provider");
+const Booking = require("../models/Booking"); // Add this import
+const jwt = require("jsonwebtoken");
 
 // Generate JWT Token
 const generateToken = (adminId, username, role) => {
   return jwt.sign(
-    { id: adminId, username, role, type: 'admin' },
+    { id: adminId, username, role, type: "admin" },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" },
   );
 };
 
@@ -21,7 +21,7 @@ const adminLogin = async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Username and password are required'
+        message: "Username and password are required",
       });
     }
 
@@ -29,14 +29,14 @@ const adminLogin = async (req, res) => {
     const admin = await Admin.findOne({
       $or: [
         { username: username.toLowerCase() },
-        { email: username.toLowerCase() }
-      ]
+        { email: username.toLowerCase() },
+      ],
     });
 
     if (!admin) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid username or password'
+        message: "Invalid username or password",
       });
     }
 
@@ -44,7 +44,7 @@ const adminLogin = async (req, res) => {
     if (!admin.isActive) {
       return res.status(403).json({
         success: false,
-        message: 'Account is deactivated. Please contact super admin.'
+        message: "Account is deactivated. Please contact super admin.",
       });
     }
 
@@ -53,7 +53,7 @@ const adminLogin = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid username or password'
+        message: "Invalid username or password",
       });
     }
 
@@ -71,22 +71,21 @@ const adminLogin = async (req, res) => {
       fullName: admin.fullName,
       role: admin.role,
       lastLogin: admin.lastLogin,
-      createdAt: admin.createdAt
+      createdAt: admin.createdAt,
     };
 
     res.status(200).json({
       success: true,
-      message: 'Login successful',
+      message: "Login successful",
       token,
-      admin: adminWithoutPassword
+      admin: adminWithoutPassword,
     });
-
   } catch (error) {
-    console.error('Admin login error:', error);
+    console.error("Admin login error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error during login',
-      error: error.message
+      message: "Server error during login",
+      error: error.message,
     });
   }
 };
@@ -96,22 +95,24 @@ const getDashboardStats = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalProviders = await Provider.countDocuments();
-    const pendingProviders = await Provider.countDocuments({ isVerified: false });
-    
+    const pendingProviders = await Provider.countDocuments({
+      isVerified: false,
+    });
+
     res.status(200).json({
       success: true,
       stats: {
         totalUsers,
         totalProviders,
-        pendingProviders
-      }
+        pendingProviders,
+      },
     });
   } catch (error) {
-    console.error('Get stats error:', error);
+    console.error("Get stats error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -122,58 +123,64 @@ const getAllProviders = async (req, res) => {
   try {
     // Admin sees ALL providers regardless of verification status
     const providers = await Provider.find()
-      .select('-password')
+      .select("-password")
       .sort({ createdAt: -1 });
-    
+
     // Helper function to get full image URL
     const getFullImageUrl = (imagePath) => {
-      if (!imagePath) return '';
-      if (imagePath.startsWith('http')) return imagePath;
+      if (!imagePath) return "";
+      if (imagePath.startsWith("http")) return imagePath;
       return `http://localhost:5050${imagePath}`;
     };
-    
+
     // Fetch reviews for each provider
-    const providersWithReviews = await Promise.all(providers.map(async (provider) => {
-      try {
-        const reviews = await Booking.find({
-          'provider.providerId': provider._id,
-          status: 'completed',
-          rating: { $exists: true, $ne: null }
-        })
-        .select('user.name rating review createdAt')
-        .sort({ createdAt: -1 })
-        .limit(5);
-        
-        return {
-          ...provider.toObject(),
-          profileImage: getFullImageUrl(provider.profileImage),
-          reviews: reviews.map(review => ({
-            userName: review.user.name,
-            rating: review.rating,
-            review: review.review,
-            createdAt: review.createdAt
-          }))
-        };
-      } catch (err) {
-        console.error(`Error fetching reviews for provider ${provider._id}:`, err);
-        return {
-          ...provider.toObject(),
-          profileImage: getFullImageUrl(provider.profileImage),
-          reviews: []
-        };
-      }
-    }));
-    
+    const providersWithReviews = await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          const reviews = await Booking.find({
+            "provider.providerId": provider._id,
+            status: "completed",
+            rating: { $exists: true, $ne: null },
+          })
+            .select("_id user.name rating review createdAt")
+            .sort({ createdAt: -1 })
+            .limit(5);
+
+          return {
+            ...provider.toObject(),
+            profileImage: getFullImageUrl(provider.profileImage),
+            reviews: reviews.map((review) => ({
+              _id: review._id,
+              userName: review.user.name,
+              rating: review.rating,
+              review: review.review,
+              createdAt: review.createdAt,
+            })),
+          };
+        } catch (err) {
+          console.error(
+            `Error fetching reviews for provider ${provider._id}:`,
+            err,
+          );
+          return {
+            ...provider.toObject(),
+            profileImage: getFullImageUrl(provider.profileImage),
+            reviews: [],
+          };
+        }
+      }),
+    );
+
     res.status(200).json({
       success: true,
-      providers: providersWithReviews
+      providers: providersWithReviews,
     });
   } catch (error) {
-    console.error('Get providers error:', error);
+    console.error("Get providers error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -181,20 +188,18 @@ const getAllProviders = async (req, res) => {
 // Get All Users
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find()
-      .select('-password')
-      .sort({ createdAt: -1 });
-    
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
+
     res.status(200).json({
       success: true,
-      users
+      users,
     });
   } catch (error) {
-    console.error('Get users error:', error);
+    console.error("Get users error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -203,28 +208,28 @@ const getAllUsers = async (req, res) => {
 const verifyProvider = async (req, res) => {
   try {
     const { providerId } = req.params;
-    
+
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
+
     provider.isVerified = true;
     await provider.save();
-    
+
     res.status(200).json({
       success: true,
-      message: 'Provider verified successfully'
+      message: "Provider verified successfully",
     });
   } catch (error) {
-    console.error('Verify provider error:', error);
+    console.error("Verify provider error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -233,29 +238,29 @@ const verifyProvider = async (req, res) => {
 const rejectProvider = async (req, res) => {
   try {
     const { providerId } = req.params;
-    
+
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
+
     provider.isVerified = false;
     provider.isActive = false;
     await provider.save();
-    
+
     res.status(200).json({
       success: true,
-      message: 'Provider rejected successfully'
+      message: "Provider rejected successfully",
     });
   } catch (error) {
-    console.error('Reject provider error:', error);
+    console.error("Reject provider error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -264,25 +269,122 @@ const rejectProvider = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const user = await User.findByIdAndDelete(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: "User not found",
       });
     }
-    
+
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: "User deleted successfully",
     });
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error("Delete user error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Delete Provider (Admin action)
+const deleteProvider = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    // First check if provider exists
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: "Provider not found",
+      });
+    }
+
+    // Delete all bookings associated with this provider
+    await Booking.deleteMany({ "provider.providerId": providerId });
+
+    // Delete the provider
+    await Provider.findByIdAndDelete(providerId);
+
+    res.status(200).json({
+      success: true,
+      message: "Provider and all associated bookings deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete provider error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Delete a specific review from a provider
+const deleteProviderReview = async (req, res) => {
+  try {
+    const { providerId, reviewId } = req.params;
+
+    // Find the booking (review) by ID
+    const booking = await Booking.findById(reviewId);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Review not found",
+      });
+    }
+
+    // Verify this booking belongs to the provider
+    if (booking.provider.providerId.toString() !== providerId) {
+      return res.status(403).json({
+        success: false,
+        message: "Review does not belong to this provider",
+      });
+    }
+
+    // Clear the rating and review
+    booking.rating = null;
+    booking.review = "";
+    await booking.save();
+
+    // Recalculate provider's average rating
+    const allCompletedBookings = await Booking.find({
+      "provider.providerId": providerId,
+      status: "completed",
+      rating: { $exists: true, $ne: null },
+    });
+
+    const provider = await Provider.findById(providerId);
+    if (provider) {
+      const totalRating = allCompletedBookings.reduce(
+        (sum, b) => sum + (b.rating || 0),
+        0,
+      );
+      provider.rating =
+        allCompletedBookings.length > 0
+          ? totalRating / allCompletedBookings.length
+          : 0;
+      provider.totalReviews = allCompletedBookings.length;
+      await provider.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Review deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete review error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -290,23 +392,23 @@ const deleteUser = async (req, res) => {
 // Create Initial Admin (Run once)
 const createInitialAdmin = async () => {
   try {
-    const existingAdmin = await Admin.findOne({ username: 'admin' });
+    const existingAdmin = await Admin.findOne({ username: "admin" });
     if (!existingAdmin) {
       await Admin.create({
-        username: 'admin',
-        email: 'admin@servease.com',
-        password: 'Admin@123',
-        fullName: 'Super Admin',
-        role: 'super_admin'
+        username: "admin",
+        email: "admin@servease.com",
+        password: "Admin@123",
+        fullName: "Super Admin",
+        role: "super_admin",
       });
-      console.log('✅ Initial admin created');
-      console.log('📝 Admin Login Credentials:');
-      console.log('   Username: admin');
-      console.log('   Password: Admin@123');
-      console.log('   Email: admin@servease.com');
+      console.log("✅ Initial admin created");
+      console.log("📝 Admin Login Credentials:");
+      console.log("   Username: admin");
+      console.log("   Password: Admin@123");
+      console.log("   Email: admin@servease.com");
     }
   } catch (error) {
-    console.error('Error creating admin:', error);
+    console.error("Error creating admin:", error);
   }
 };
 
@@ -318,5 +420,7 @@ module.exports = {
   verifyProvider,
   rejectProvider,
   deleteUser,
-  createInitialAdmin
+  createInitialAdmin,
+  deleteProvider,        
+  deleteProviderReview,
 };

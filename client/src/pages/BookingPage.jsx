@@ -720,7 +720,7 @@ export default function BookingPage() {
                 <div>
                   <p className="text-sm text-gray-500">Service Rate</p>
                   <h2 className="text-3xl font-bold text-gray-800">
-                    ${provider.hourlyRate || 85}
+                    Rs. {provider.hourlyRate || 85}
                     <span className="text-sm font-normal text-gray-500">
                       /hour
                     </span>

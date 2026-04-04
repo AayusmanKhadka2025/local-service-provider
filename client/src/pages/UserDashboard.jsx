@@ -236,7 +236,7 @@ const UserDashboard = () => {
   };
 
   const formatPrice = (amount) => {
-    return `$${amount}`;
+    return `Rs. ${amount}`;
   };
 
   const renderStars = (rating) => {
@@ -847,7 +847,7 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
               <p className="text-sm text-gray-600 mt-2"><span className="font-medium">Experience:</span> {provider.experience}</p>
             )}
             {provider.hourlyRate && (
-              <p className="text-sm text-gray-600 mt-1"><span className="font-medium">Hourly Rate:</span> ${provider.hourlyRate}/hr</p>
+              <p className="text-sm text-gray-600 mt-1"><span className="font-medium">Hourly Rate:</span> Rs. {provider.hourlyRate}/hr</p>
             )}
           </div>
         </div>
