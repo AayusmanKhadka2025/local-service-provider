@@ -17,8 +17,21 @@ import {
   Award,
   Search,
   CheckCircle,
-  XCircle
+  XCircle,
+  Star,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Briefcase,
+  Calendar,
+  Tag,
+  MessageSquare,
+  FileText,
+  Download,
+  DollarSign
 } from "lucide-react";
+
 import UserManagement from "../admin/UserManagement";
 import ProviderManagement from "../admin/ProviderManagement";
 

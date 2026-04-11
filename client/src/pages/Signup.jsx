@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Home } from "lucide-react";
+import { Home, CheckCircle, XCircle } from "lucide-react"; // Add CheckCircle and XCircle
 import axios from "axios";
 import signupImage from "../assets/auth-illustration.png";
 
@@ -18,13 +18,41 @@ const Signup = () => {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Add password validation state
+  const [passwordValidation, setPasswordValidation] = useState({
+    minLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+  });
+
+  // Password validation function
+  const validatePassword = (password) => {
+    const validation = {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
+    setPasswordValidation(validation);
+    return Object.values(validation).every(Boolean);
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    // Validate password in real-time
+    if (name === "password") {
+      validatePassword(value);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -44,8 +72,13 @@ const Signup = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setMessage({ type: "error", text: "Password must be at least 6 characters" });
+    // Validate password strength
+    const isPasswordValid = validatePassword(formData.password);
+    if (!isPasswordValid) {
+      setMessage({
+        type: "error",
+        text: "Password does not meet the security requirements",
+      });
       return;
     }
 
@@ -77,6 +110,15 @@ const Signup = () => {
           confirmPassword: "",
           agreeTerms: false,
         });
+        
+        // Reset password validation
+        setPasswordValidation({
+          minLength: false,
+          hasUppercase: false,
+          hasLowercase: false,
+          hasNumber: false,
+          hasSpecialChar: false,
+        });
 
         setTimeout(() => {
           navigate("/login");
@@ -104,6 +146,14 @@ const Signup = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to render validation status
+  const renderValidationIcon = (isValid) => {
+    if (isValid) {
+      return <CheckCircle className="w-4 h-4 text-green-500" />;
+    }
+    return <XCircle className="w-4 h-4 text-gray-400" />;
   };
 
   return (
@@ -189,7 +239,7 @@ const Signup = () => {
               />
             </div>
 
-            {/* Password Field with Eye Icon - Same as Login page */}
+            {/* Password Field with Validation */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Create Password
@@ -200,9 +250,8 @@ const Signup = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="Create a password (min. 6 characters)"
+                  placeholder="Create a strong password"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-blue-500 outline-none"
-                  minLength="6"
                   required
                   disabled={loading}
                 />
@@ -242,9 +291,50 @@ const Signup = () => {
                   )}
                 </button>
               </div>
+              
+              {/* Password Requirements Box */}
+              {formData.password && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">
+                    Password must contain:
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {renderValidationIcon(passwordValidation.minLength)}
+                      <span className={`text-xs ${passwordValidation.minLength ? "text-green-600" : "text-gray-500"}`}>
+                        At least 8 characters
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {renderValidationIcon(passwordValidation.hasUppercase)}
+                      <span className={`text-xs ${passwordValidation.hasUppercase ? "text-green-600" : "text-gray-500"}`}>
+                        At least one uppercase letter (A-Z)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {renderValidationIcon(passwordValidation.hasLowercase)}
+                      <span className={`text-xs ${passwordValidation.hasLowercase ? "text-green-600" : "text-gray-500"}`}>
+                        At least one lowercase letter (a-z)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {renderValidationIcon(passwordValidation.hasNumber)}
+                      <span className={`text-xs ${passwordValidation.hasNumber ? "text-green-600" : "text-gray-500"}`}>
+                        At least one number (0-9)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {renderValidationIcon(passwordValidation.hasSpecialChar)}
+                      <span className={`text-xs ${passwordValidation.hasSpecialChar ? "text-green-600" : "text-gray-500"}`}>
+                        At least one special character (!@#$%^&* etc.)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Confirm Password Field with Eye Icon - Same as Login page */}
+            {/* Confirm Password Field */}
             <div>
               <label className="block text-sm font-medium mb-1">
                 Confirm Password
@@ -296,6 +386,11 @@ const Signup = () => {
                   )}
                 </button>
               </div>
+              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p className="text-xs text-red-500 mt-1">
+                  Passwords do not match
+                </p>
+              )}
             </div>
 
             <div className="flex items-start gap-2 text-sm">
