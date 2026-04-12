@@ -1,6 +1,8 @@
 const User = require('../models/User');
+const OTP = require('../models/OTP');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { generateOTP, sendVerificationEmail } = require('../services/emailService');
 
 // Helper function to get full avatar URL
 const getFullAvatarUrl = (avatarPath) => {
@@ -44,8 +46,8 @@ const validatePasswordStrength = (password) => {
   };
 };
 
-// Register new user
-const registerUser = async (req, res) => {
+// Send OTP for email verification
+const sendOTP = async (req, res) => {
   try {
     const { fullName, email, password, confirmPassword } = req.body;
 
@@ -83,11 +85,74 @@ const registerUser = async (req, res) => {
       });
     }
 
-    // Create new user with default values
-    const user = await User.create({
-      fullName,
+    // Generate OTP
+    const otp = generateOTP();
+    
+    // Hash password before storing temporarily
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Store OTP and user data temporarily
+    await OTP.create({
       email,
-      password,
+      otp,
+      fullName,
+      password: hashedPassword
+    });
+
+    // Send verification email
+    const emailSent = await sendVerificationEmail(email, fullName, otp);
+    
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification code sent to your email. Please check your inbox.',
+      email: email
+    });
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Verify OTP and complete registration
+const verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and OTP are required'
+      });
+    }
+
+    // Find OTP record
+    const otpRecord = await OTP.findOne({ email, otp });
+    
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code'
+      });
+    }
+
+    // Create user account
+    const user = await User.create({
+      fullName: otpRecord.fullName,
+      email: otpRecord.email,
+      password: otpRecord.password, // Already hashed
       phone: '',
       gender: 'Male',
       country: 'Nepal',
@@ -97,6 +162,12 @@ const registerUser = async (req, res) => {
       landmark: 'Near Kathmandu Durbar Square',
       avatar: ''
     });
+
+    // Delete OTP record
+    await OTP.deleteOne({ _id: otpRecord._id });
+
+    // Generate token for auto-login
+    const token = generateUserToken(user._id, user.email, user.fullName);
 
     // Remove password from response
     const userWithoutPassword = {
@@ -116,12 +187,13 @@ const registerUser = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Email verified and account created successfully!',
+      token,
       user: userWithoutPassword
     });
 
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Verify OTP error:', error);
     
     if (error.code === 11000) {
       return res.status(409).json({
@@ -130,28 +202,85 @@ const registerUser = async (req, res) => {
       });
     }
 
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', ')
-      });
-    }
-
     res.status(500).json({
       success: false,
-      message: 'Server error during registration',
+      message: 'Server error',
       error: error.message
     });
   }
 };
 
-// Login user (for regular users)
+// Resend OTP
+const resendOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Find existing OTP record
+    const otpRecord = await OTP.findOne({ email });
+    
+    if (!otpRecord) {
+      return res.status(404).json({
+        success: false,
+        message: 'No pending verification found. Please sign up again.'
+      });
+    }
+
+    // Generate new OTP
+    const newOTP = generateOTP();
+    
+    // Update OTP
+    otpRecord.otp = newOTP;
+    otpRecord.createdAt = new Date();
+    await otpRecord.save();
+
+    // Send new verification email
+    const emailSent = await sendVerificationEmail(email, otpRecord.fullName, newOTP);
+    
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'New verification code sent to your email.'
+    });
+
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Keep original register function for reference (optional)
+const registerUser = async (req, res) => {
+  // This can be kept for admin creation or removed
+  try {
+    const { fullName, email, password, confirmPassword } = req.body;
+    // ... existing code
+  } catch (error) {
+    // ... existing code
+  }
+};
+
+// Login user
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -159,7 +288,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({
@@ -168,7 +296,6 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({
@@ -177,10 +304,8 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Generate token
     const token = generateUserToken(user._id, user.email, user.fullName);
 
-    // Remove password from response
     const userWithoutPassword = {
       _id: user._id,
       fullName: user.fullName,
@@ -195,8 +320,6 @@ const loginUser = async (req, res) => {
       avatar: getFullAvatarUrl(user.avatar),
       createdAt: user.createdAt
     };
-
-    console.log('User login successful for:', email);
 
     res.status(200).json({
       success: true,
@@ -217,5 +340,8 @@ const loginUser = async (req, res) => {
 
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  sendOTP,
+  verifyOTP,
+  resendOTP
 };

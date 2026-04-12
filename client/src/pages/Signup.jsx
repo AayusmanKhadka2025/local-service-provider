@@ -18,7 +18,7 @@ const Signup = () => {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
   // Add password validation state
   const [passwordValidation, setPasswordValidation] = useState({
     minLength: false,
@@ -43,7 +43,7 @@ const Signup = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -86,52 +86,51 @@ const Signup = () => {
       setLoading(true);
       setMessage({ type: "", text: "" });
 
+      // Send OTP instead of direct registration
       const response = await axios.post(
-        "http://localhost:5050/api/auth/register",
+        "http://localhost:5050/api/auth/send-otp",
         {
           fullName: formData.fullName,
           email: formData.email,
           password: formData.password,
           confirmPassword: formData.confirmPassword,
-        }
+        },
       );
 
       if (response.data.success) {
+        // Store email temporarily and redirect to verification page
+        localStorage.setItem("pendingEmail", formData.email);
+
         setMessage({
           type: "success",
-          text: "Account created successfully! You can now login.",
-        });
-
-        // Reset form
-        setFormData({
-          fullName: "",
-          email: "",
-          password: "",
-          confirmPassword: "",
-          agreeTerms: false,
-        });
-        
-        // Reset password validation
-        setPasswordValidation({
-          minLength: false,
-          hasUppercase: false,
-          hasLowercase: false,
-          hasNumber: false,
-          hasSpecialChar: false,
+          text: "Verification code sent! Redirecting to verification page...",
         });
 
         setTimeout(() => {
-          navigate("/login");
+          navigate("/verify-otp", { state: { email: formData.email } });
         }, 2000);
       }
     } catch (error) {
       console.error("Registration error:", error);
 
       if (error.response) {
-        setMessage({
-          type: "error",
-          text: error.response.data.message || "Registration failed",
-        });
+        if (error.response.status === 409) {
+          setMessage({
+            type: "error",
+            text: "An account with this email already exists. Please use a different email.",
+          });
+        } else if (error.response.data?.errors) {
+          // Display password validation errors
+          setMessage({
+            type: "error",
+            text: error.response.data.errors.join(". "),
+          });
+        } else {
+          setMessage({
+            type: "error",
+            text: error.response.data?.message || "Registration failed",
+          });
+        }
       } else if (error.request) {
         setMessage({
           type: "error",
@@ -291,7 +290,7 @@ const Signup = () => {
                   )}
                 </button>
               </div>
-              
+
               {/* Password Requirements Box */}
               {formData.password && (
                 <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
@@ -301,31 +300,41 @@ const Signup = () => {
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       {renderValidationIcon(passwordValidation.minLength)}
-                      <span className={`text-xs ${passwordValidation.minLength ? "text-green-600" : "text-gray-500"}`}>
+                      <span
+                        className={`text-xs ${passwordValidation.minLength ? "text-green-600" : "text-gray-500"}`}
+                      >
                         At least 8 characters
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {renderValidationIcon(passwordValidation.hasUppercase)}
-                      <span className={`text-xs ${passwordValidation.hasUppercase ? "text-green-600" : "text-gray-500"}`}>
+                      <span
+                        className={`text-xs ${passwordValidation.hasUppercase ? "text-green-600" : "text-gray-500"}`}
+                      >
                         At least one uppercase letter (A-Z)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {renderValidationIcon(passwordValidation.hasLowercase)}
-                      <span className={`text-xs ${passwordValidation.hasLowercase ? "text-green-600" : "text-gray-500"}`}>
+                      <span
+                        className={`text-xs ${passwordValidation.hasLowercase ? "text-green-600" : "text-gray-500"}`}
+                      >
                         At least one lowercase letter (a-z)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {renderValidationIcon(passwordValidation.hasNumber)}
-                      <span className={`text-xs ${passwordValidation.hasNumber ? "text-green-600" : "text-gray-500"}`}>
+                      <span
+                        className={`text-xs ${passwordValidation.hasNumber ? "text-green-600" : "text-gray-500"}`}
+                      >
                         At least one number (0-9)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {renderValidationIcon(passwordValidation.hasSpecialChar)}
-                      <span className={`text-xs ${passwordValidation.hasSpecialChar ? "text-green-600" : "text-gray-500"}`}>
+                      <span
+                        className={`text-xs ${passwordValidation.hasSpecialChar ? "text-green-600" : "text-gray-500"}`}
+                      >
                         At least one special character (!@#$%^&* etc.)
                       </span>
                     </div>
@@ -386,11 +395,12 @@ const Signup = () => {
                   )}
                 </button>
               </div>
-              {formData.confirmPassword && formData.password !== formData.confirmPassword && (
-                <p className="text-xs text-red-500 mt-1">
-                  Passwords do not match
-                </p>
-              )}
+              {formData.confirmPassword &&
+                formData.password !== formData.confirmPassword && (
+                  <p className="text-xs text-red-500 mt-1">
+                    Passwords do not match
+                  </p>
+                )}
             </div>
 
             <div className="flex items-start gap-2 text-sm">

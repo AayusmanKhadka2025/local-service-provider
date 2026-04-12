@@ -9,6 +9,7 @@ import ServiceListing from "./pages/ServiceListing";
 import BookingPage from "./pages/BookingPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import VerifyOTP from "./pages/VerifyOTP";
 
 function App() {
   return (
@@ -69,6 +70,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/verify-otp" element={<VerifyOTP />} />
       </Routes>
     </Router>
   );
