@@ -10,6 +10,8 @@ import BookingPage from "./pages/BookingPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import VerifyOTP from "./pages/VerifyOTP";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
   return (
@@ -72,6 +74,11 @@ function App() {
         />
 
         <Route path="/verify-otp" element={<VerifyOTP />} />
+
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        
       </Routes>
     </Router>
   );

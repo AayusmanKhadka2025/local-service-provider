@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import { Home } from "lucide-react";
 import authImage from "../assets/auth-illustration.png";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -22,6 +23,22 @@ const Login = () => {
       [name]: value,
     }));
   };
+
+  // Add this useEffect to check for location state
+  useEffect(() => {
+    if (location.state?.message) {
+      setMessage({
+        type: "success",
+        text: location.state.message,
+      });
+      // Pre-fill email if provided
+      if (location.state?.email) {
+        setFormData((prev) => ({ ...prev, email: location.state.email }));
+      }
+      // Clear the location state to prevent showing again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Unified Login API Call - Tries User first, then Provider, then Admin
   const handleSubmit = async (e) => {
@@ -43,7 +60,7 @@ const Login = () => {
           {
             email: formData.email,
             password: formData.password,
-          }
+          },
         );
 
         if (userResponse.data.success) {
@@ -72,13 +89,13 @@ const Login = () => {
           {
             email: formData.email,
             password: formData.password,
-          }
+          },
         );
 
         if (providerResponse.data.success) {
           localStorage.setItem(
             "provider",
-            JSON.stringify(providerResponse.data.provider)
+            JSON.stringify(providerResponse.data.provider),
           );
           localStorage.setItem("providerToken", providerResponse.data.token);
           localStorage.setItem("userType", "provider");
@@ -102,13 +119,16 @@ const Login = () => {
         const adminResponse = await axios.post(
           "http://localhost:5050/api/admin/login",
           {
-            username: formData.email, // Admin uses username/email
+            username: formData.email,
             password: formData.password,
-          }
+          },
         );
 
         if (adminResponse.data.success) {
-          localStorage.setItem("admin", JSON.stringify(adminResponse.data.admin));
+          localStorage.setItem(
+            "admin",
+            JSON.stringify(adminResponse.data.admin),
+          );
           localStorage.setItem("adminToken", adminResponse.data.token);
           localStorage.setItem("userType", "admin");
 
@@ -124,8 +144,7 @@ const Login = () => {
         }
       } catch (adminError) {
         console.log("Admin login also failed");
-        
-        // Check for specific error messages
+
         if (adminError.response?.status === 403) {
           const errorMsg = adminError.response?.data?.message || "";
           if (errorMsg.includes("deactivated")) {
@@ -293,17 +312,15 @@ const Login = () => {
           </form>
 
           <p className="text-sm text-blue-600 text-center mt-3 cursor-pointer hover:underline">
-            Forgot Password?
+            <Link to="/forgot-password">Forgot Password?</Link>
           </p>
 
-          {/* Divider */}
           <div className="flex items-center my-5">
             <div className="flex-grow h-px bg-gray-300"></div>
             <span className="px-3 text-sm text-gray-400">or</span>
             <div className="flex-grow h-px bg-gray-300"></div>
           </div>
 
-          {/* Google Login */}
           <button
             type="button"
             className="w-full flex items-center justify-center gap-2 border border-gray-300 py-2 rounded-lg hover:bg-gray-100 transition"
@@ -316,7 +333,6 @@ const Login = () => {
             <span className="text-sm font-medium">Continue with Google</span>
           </button>
 
-          {/* Role Selection Links */}
           <div className="mt-5 space-y-2">
             <p className="text-sm text-center text-gray-600">
               Don't have an account?{" "}
