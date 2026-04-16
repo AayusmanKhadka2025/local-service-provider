@@ -1,43 +1,50 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const path = require("path");
-require("dotenv").config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const passport = require('passport');
+const path = require('path');
+require('dotenv').config();
 
 // Import routes
-const authRoutes = require("./routes/authRoutes");
-const userRoutes = require("./routes/userRoutes");
-const providerRoutes = require("./routes/providerRoutes");
-const bookingRoutes = require("./routes/bookingRoutes");
-const adminRoutes = require("./routes/adminRoutes");
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const providerRoutes = require('./routes/providerRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+
+// Import Google Auth Service to initialize passport strategy
+require('./services/googleAuthService');
 
 const app = express();
 
-// ✅ FIRST: Apply CORS middleware (this must come before routes)
+// CORS middleware
 app.use(
   cors({
-    origin: "http://localhost:5173", // Your React app URL
+    origin: "http://localhost:5173",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  })
 );
 
-// ✅ SECOND: Handle preflight requests
 app.options("*", cors());
 
-// ✅ THIRD: Body parsers
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ FOURTH: Serve static files (for uploaded images)
+// Passport initialization
+app.use(passport.initialize());
+
+// Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ✅ FIFTH: Routes (AFTER CORS middleware)
+// Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes); // This is now properly placed after CORS
+app.use("/api/users", userRoutes);
 app.use("/api/providers", providerRoutes);
-app.use('/api/admin', adminRoutes); // Add this line
+app.use('/api/admin', adminRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
@@ -55,7 +62,6 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB connected successfully");
 
-    // Create uploads directory if it doesn't exist
     const fs = require("fs");
     const uploadDir = path.join(__dirname, "uploads");
     if (!fs.existsSync(uploadDir)) {
@@ -63,11 +69,10 @@ mongoose
       console.log("✅ Uploads directory created");
     }
 
-    // Create initial admin
     const { createInitialAdmin } = require('./controllers/adminController');
     createInitialAdmin();
 
-    const PORT = process.env.PORT || 5050; // Make sure this matches your .env
+    const PORT = process.env.PORT || 5050;
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
@@ -77,8 +82,6 @@ mongoose
     process.exit(1);
   });
 
-app.use("/api/bookings", bookingRoutes);
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -86,5 +89,14 @@ app.use((err, req, res, next) => {
     success: false,
     message: "Something went wrong!",
     error: process.env.NODE_ENV === "development" ? err.message : {},
+  });
+});
+
+// Add this temporarily to debug
+app.get('/debug-env', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not Set',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not Set',
+    frontendUrl: process.env.FRONTEND_URL
   });
 });

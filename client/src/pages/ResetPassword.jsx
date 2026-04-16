@@ -42,7 +42,7 @@ const ResetPassword = () => {
         
         if (response.data.success) {
           setEmail(response.data.email);
-          setMessage({ type: "success", text: "Please enter your new password below." });
+          setMessage({ type: "success"});
         }
       } catch (error) {
         console.error("Token verification error:", error);

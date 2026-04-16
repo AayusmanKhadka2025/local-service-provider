@@ -19,6 +19,15 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  isGoogleAccount: {
+    type: Boolean,
+    default: false
+  },
   phone: {
     type: String,
     default: ''
@@ -58,15 +67,13 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Hash password before saving - but skip if already hashed
+// Hash password before saving - skip for Google accounts
 userSchema.pre('save', async function (next) {
-  // Skip if password is not modified
-  if (!this.isModified('password')) return next();
+  // Skip password hashing for Google accounts or if password not modified
+  if (this.isGoogleAccount || !this.isModified('password')) return next();
   
-  // Skip if password is already hashed (indicated by a flag or length)
-  // bcrypt hashes are always 60 characters long
-  if (this.password && this.password.length === 60) {
-    console.log('Password appears to be already hashed, skipping re-hashing');
+  // Check if password is already hashed
+  if (this.password && (this.password.startsWith('$2b$') || this.password.length === 60)) {
     return next();
   }
   

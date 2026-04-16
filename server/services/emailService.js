@@ -49,10 +49,6 @@ const sendVerificationEmail = async (email, fullName, otp) => {
           </h1>
         </div>
 
-        <p style="text-align:center; color:#6b7280; font-size:14px; margin:6px 0 25px;">
-          Premium Local Service Platform
-        </p>
-
         <!-- Title -->
         <h2 style="color:#1f2937; font-size:22px; text-align:center; margin:0 0 15px;">
           Verify Your Email Address
@@ -131,7 +127,7 @@ const sendVerificationEmail = async (email, fullName, otp) => {
   }
 };
 
-// NEW: Send password reset email
+// Updated: Send password reset email with button only (no plain text link)
 const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
   const mailOptions = {
     from: `"ServEase" <${process.env.EMAIL_USER}>`,
@@ -166,10 +162,6 @@ const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
           </h1>
         </div>
 
-        <p style="text-align:center; color:#6b7280; font-size:14px; margin:6px 0 25px;">
-          Premium Local Service Platform
-        </p>
-
         <!-- Title -->
         <h2 style="color:#1f2937; font-size:22px; text-align:center; margin:0 0 15px;">
           Reset Your Password
@@ -181,11 +173,11 @@ const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
         </p>
 
         <p style="color:#4b5563; font-size:15px; line-height:1.6; text-align:center; margin:0 0 20px;">
-          Follow this link to reset your ServEase password for your <strong>${email}</strong> account.
+          We received a request to reset your ServEase password for your account associated with <strong>${email}</strong>.
         </p>
 
-        <!-- Reset Button -->
-        <div style="text-align:center; margin:25px 0;">
+        <!-- Reset Button Only -->
+        <div style="text-align:center; margin:30px 0;">
           <a href="${resetUrl}" style="
             display:inline-block;
             background: linear-gradient(135deg, #2563eb, #3b82f6);
@@ -195,20 +187,15 @@ const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
             border-radius:8px;
             font-weight:600;
             font-size:16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           ">
             Reset Password
           </a>
         </div>
 
-        <!-- Alternative Link -->
-        <p style="color:#6b7280; font-size:13px; text-align:center; margin:15px 0; word-break:break-all;">
-          Or copy this link: <br>
-          <a href="${resetUrl}" style="color:#3b82f6; text-decoration:none;">${resetUrl}</a>
-        </p>
-
         <!-- Note -->
         <p style="color:#9ca3af; font-size:13px; text-align:center; margin:25px 0 0;">
-          If you didn't ask to reset your password, you can ignore this email.
+          If you didn't request a password reset, you can safely ignore this email.
         </p>
 
         <p style="color:#9ca3af; font-size:13px; text-align:center; margin:15px 0 0;">
@@ -256,5 +243,5 @@ const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
 module.exports = {
   generateOTP,
   sendVerificationEmail,
-  sendPasswordResetEmail, // Add this export
+  sendPasswordResetEmail,
 };

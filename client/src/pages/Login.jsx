@@ -13,6 +13,7 @@ const Login = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -39,6 +40,14 @@ const Login = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Google Login Handler
+  const handleGoogleLogin = () => {
+    setGoogleLoading(true);
+    // Store a flag to indicate this is a login attempt
+    localStorage.setItem("googleAuthIntent", "login");
+    window.location.href = "http://localhost:5050/api/auth/google";
+  };
 
   // Unified Login API Call - Tries User first, then Provider, then Admin
   const handleSubmit = async (e) => {
@@ -321,16 +330,50 @@ const Login = () => {
             <div className="flex-grow h-px bg-gray-300"></div>
           </div>
 
+          {/* Google Login Button - Improved */}
           <button
-            type="button"
-            className="w-full flex items-center justify-center gap-2 border border-gray-300 py-2 rounded-lg hover:bg-gray-100 transition"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
           >
-            <img
-              src="https://www.svgrepo.com/show/475656/google-color.svg"
-              alt="Google"
-              className="w-5 h-5"
-            />
-            <span className="text-sm font-medium">Continue with Google</span>
+            {googleLoading ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5 text-gray-600"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span className="text-sm font-medium text-gray-600">
+                  Redirecting to Google...
+                </span>
+              </>
+            ) : (
+              <>
+                <img
+                  src="https://www.svgrepo.com/show/475656/google-color.svg"
+                  alt="Google"
+                  className="w-5 h-5 transition-transform group-hover:scale-105"
+                />
+                <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">
+                  Continue with Google
+                </span>
+              </>
+            )}
           </button>
 
           <div className="mt-5 space-y-2">

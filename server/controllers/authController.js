@@ -7,7 +7,7 @@ const crypto = require("crypto");
 const {
   generateOTP,
   sendVerificationEmail,
-  sendPasswordResetEmail, // Add this import
+  sendPasswordResetEmail,
 } = require("../services/emailService");
 
 // Helper function to get full avatar URL
@@ -24,6 +24,42 @@ const generateUserToken = (userId, email, fullName) => {
     process.env.JWT_SECRET,
     { expiresIn: "7d" },
   );
+};
+
+// Google Auth Success Handler
+const googleAuthSuccess = async (req, res) => {
+  try {
+    const token = generateUserToken(req.user._id, req.user.email, req.user.fullName);
+    
+    const userWithoutPassword = {
+      _id: req.user._id,
+      fullName: req.user.fullName,
+      email: req.user.email,
+      phone: req.user.phone || '',
+      gender: req.user.gender || 'Male',
+      country: req.user.country || 'Nepal',
+      province: req.user.province || '',
+      city: req.user.city || '',
+      area: req.user.area || '',
+      landmark: req.user.landmark || '',
+      avatar: getFullAvatarUrl(req.user.avatar),
+      createdAt: req.user.createdAt,
+      isNewUser: req.query.isNewUser === 'true'
+    };
+
+    // Redirect to frontend with token and user data
+    const redirectUrl = `${process.env.FRONTEND_URL}/google-auth-callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userWithoutPassword))}`;
+    res.redirect(redirectUrl);
+    
+  } catch (error) {
+    console.error('Google auth success error:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=Google authentication failed`);
+  }
+};
+
+// Google Auth Failure Handler
+const googleAuthFailure = (req, res) => {
+  res.redirect(`${process.env.FRONTEND_URL}/login?error=Google authentication failed`);
 };
 
 // Password validation function
@@ -157,18 +193,12 @@ const verifyOTP = async (req, res) => {
     }
 
     console.log("OTP found, creating user account for:", email);
-    console.log(
-      "Password hash from OTP record (length):",
-      otpRecord.password.length,
-    );
-    console.log("Is it a bcrypt hash?", otpRecord.password.startsWith("$2b$"));
 
     // Create user account with the already hashed password
-    // Use create() directly - the pre-save hook will detect it's already hashed
     const user = await User.create({
       fullName: otpRecord.fullName,
       email: otpRecord.email.toLowerCase(),
-      password: otpRecord.password, // This is already hashed from OTP record
+      password: otpRecord.password,
       phone: "",
       gender: "Male",
       country: "Nepal",
@@ -177,14 +207,10 @@ const verifyOTP = async (req, res) => {
       area: "Thamel",
       landmark: "Near Kathmandu Durbar Square",
       avatar: "",
+      isGoogleAccount: false
     });
 
     console.log("User created successfully:", user._id);
-    console.log("Stored password hash length:", user.password.length);
-    console.log(
-      "Is stored hash a bcrypt hash?",
-      user.password.startsWith("$2b$"),
-    );
 
     // Delete OTP record
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -192,8 +218,7 @@ const verifyOTP = async (req, res) => {
     // Return success WITHOUT token (user must login manually)
     res.status(201).json({
       success: true,
-      message:
-        "Email verified and account created successfully! Please login to continue.",
+      message: "Email verified and account created successfully! Please login to continue.",
       email: user.email,
     });
   } catch (error) {
@@ -272,7 +297,7 @@ const resendOTP = async (req, res) => {
   }
 };
 
-// ========== PASSWORD RESET FUNCTIONS (NEW) ==========
+// ========== PASSWORD RESET FUNCTIONS ==========
 
 // Send password reset email
 const forgotPassword = async (req, res) => {
@@ -293,6 +318,14 @@ const forgotPassword = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "If an account exists with this email, you will receive a password reset link.",
+      });
+    }
+
+    // Check if user is a Google account
+    if (user.isGoogleAccount) {
+      return res.status(400).json({
+        success: false,
+        message: "This account uses Google Sign-In. Please login with Google.",
       });
     }
 
@@ -438,7 +471,7 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    // Update password (let the pre-save hook hash it)
+    // Update password
     user.password = newPassword;
     await user.save();
 
@@ -459,9 +492,8 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// Keep original register function for reference (optional)
+// Keep original register function for reference
 const registerUser = async (req, res) => {
-  // This can be kept for admin creation or removed
   try {
     const { fullName, email, password, confirmPassword } = req.body;
     // ... existing code
@@ -477,7 +509,6 @@ const loginUser = async (req, res) => {
 
     console.log("=== LOGIN ATTEMPT ===");
     console.log("Email:", email);
-    console.log("Password provided:", password ? "Yes" : "No");
 
     if (!email || !password) {
       return res.status(400).json({
@@ -497,11 +528,13 @@ const loginUser = async (req, res) => {
       });
     }
 
-    console.log("User found:", user.email);
-    console.log(
-      "Stored password hash length:",
-      user.password ? user.password.length : "No password",
-    );
+    // Check if user is a Google account
+    if (user.isGoogleAccount) {
+      return res.status(401).json({
+        success: false,
+        message: "This account uses Google Sign-In. Please login with Google.",
+      });
+    }
 
     // Compare password
     const isPasswordValid = await user.comparePassword(password);
@@ -559,4 +592,6 @@ module.exports = {
   forgotPassword,
   verifyResetToken,
   resetPassword,
+  googleAuthSuccess,
+  googleAuthFailure,
 };

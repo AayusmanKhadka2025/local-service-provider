@@ -1,4 +1,5 @@
 const express = require('express');
+const passport = require('passport');
 const { 
   registerUser, 
   loginUser, 
@@ -7,7 +8,9 @@ const {
   resendOTP,
   forgotPassword,
   verifyResetToken,
-  resetPassword
+  resetPassword,
+  googleAuthSuccess,
+  googleAuthFailure
 } = require('../controllers/authController');
 
 const router = express.Router();
@@ -27,5 +30,25 @@ router.post('/resend-otp', resendOTP);
 router.post('/forgot-password', forgotPassword);
 router.get('/verify-reset-token/:token', verifyResetToken);
 router.post('/reset-password', resetPassword);
+
+// Google OAuth routes
+router.get('/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+router.get('/google/callback',
+  passport.authenticate('google', { 
+    failureRedirect: '/api/auth/google/failure',
+    session: false
+  }),
+  (req, res) => {
+    // Check if user is new
+    const isNewUser = req.user.isNewUser || false;
+    googleAuthSuccess(req, res, isNewUser);
+  }
+);
+
+router.get('/google/success', googleAuthSuccess);
+router.get('/google/failure', googleAuthFailure);
 
 module.exports = router;

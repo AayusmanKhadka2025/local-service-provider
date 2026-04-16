@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import VerifyOTP from "./pages/VerifyOTP";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import GoogleAuthCallback from "./pages/GoogleAuthCallback";
 
 function App() {
   return (
@@ -78,6 +79,9 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        <Route path="/google-auth-callback" element={<GoogleAuthCallback />} />
+
         
       </Routes>
     </Router>
