@@ -32,7 +32,9 @@ import {
   ArrowLeft,
   AlertCircle,
   Check,
-  ThumbsUp
+  ThumbsUp,
+  Users,
+  AlertTriangle
 } from "lucide-react";
 
 export default function BookingPage() {
@@ -42,7 +44,7 @@ export default function BookingPage() {
   const [reviews, setReviews] = useState([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedTime, setSelectedTime] = useState("11:30 AM");
+  const [selectedTime, setSelectedTime] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualDate, setManualDate] = useState("");
   const [manualTime, setManualTime] = useState("");
@@ -53,34 +55,77 @@ export default function BookingPage() {
   const [dateError, setDateError] = useState("");
   const [user, setUser] = useState(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  
+  // Contact Details State
+  const [contactDetails, setContactDetails] = useState({
+    phoneNumber: "",
+    emergencyContact: ""
+  });
+  const [contactErrors, setContactErrors] = useState({});
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   const mainContentRef = useRef(null);
   const footerRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
 
-  const times = ["09:00 AM", "11:30 AM", "02:00 PM", "03:30 PM", "05:00 PM"];
+  // Time slots with their 24-hour equivalents for comparison
+  const timeSlots = [
+    { display: "09:00 AM", value: "09:00", hour24: 9, minute: 0 },
+    { display: "11:30 AM", value: "11:30", hour24: 11, minute: 30 },
+    { display: "02:00 PM", value: "14:00", hour24: 14, minute: 0 },
+    { display: "03:30 PM", value: "15:30", hour24: 15, minute: 30 },
+    { display: "05:00 PM", value: "17:00", hour24: 17, minute: 0 }
+  ];
 
   // Load user data from localStorage
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const userData = JSON.parse(storedUser);
-        let avatarUrl = userData.avatar;
-        if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
-          avatarUrl = `http://localhost:5050${avatarUrl}`;
-        } else if (!avatarUrl) {
-          avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
+    const loadUserData = async () => {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          let avatarUrl = userData.avatar;
+          if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
+            avatarUrl = `http://localhost:5050${avatarUrl}`;
+          } else if (!avatarUrl) {
+            avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
+          }
+          setUser({
+            ...userData,
+            avatar: avatarUrl,
+          });
+          
+          // Fetch the latest profile from server to get saved phone number
+          await fetchUserProfile(userData.email);
+        } catch (error) {
+          console.error("Error parsing user data:", error);
         }
-        setUser({
-          ...userData,
-          avatar: avatarUrl,
-        });
-      } catch (error) {
-        console.error("Error parsing user data:", error);
       }
-    }
+    };
+    
+    loadUserData();
   }, []);
+
+  // Fetch user profile from server to get saved contact info
+  const fetchUserProfile = async (email) => {
+    try {
+      setLoadingProfile(true);
+      const response = await axios.get(`http://localhost:5050/api/users/profile/${email}`);
+      
+      if (response.data.success) {
+        const userProfile = response.data.user;
+        setContactDetails(prev => ({
+          ...prev,
+          phoneNumber: userProfile.phone || "",
+          emergencyContact: userProfile.emergencyContact || ""
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   // Load provider data from navigation state
   useEffect(() => {
@@ -124,6 +169,43 @@ export default function BookingPage() {
     });
   }, []);
 
+  // Set default selected time to first available time slot
+  useEffect(() => {
+    if (selectedDate) {
+      const firstAvailableTime = getFirstAvailableTimeSlot(selectedDate);
+      if (firstAvailableTime) {
+        setSelectedTime(firstAvailableTime.display);
+      }
+    }
+  }, [selectedDate]);
+
+  // Validate contact details
+  const validateContactDetails = () => {
+    const errors = {};
+    
+    if (!contactDetails.phoneNumber) {
+      errors.phoneNumber = "Phone number is required";
+    } else if (!/^[0-9+\-\s()]{10,}$/.test(contactDetails.phoneNumber)) {
+      errors.phoneNumber = "Please enter a valid phone number";
+    }
+    
+    setContactErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle contact input changes
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
+    setContactDetails(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (contactErrors[name]) {
+      setContactErrors(prev => ({ ...prev, [name]: "" }));
+    }
+  };
+
   // Calendar generation
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -155,17 +237,76 @@ export default function BookingPage() {
     return date < today;
   };
 
-  // Check if a time is in the past for the selected date
-  const isPastTime = (time, date) => {
+  // Check if a specific time slot is in the past for the selected date
+  const isTimeSlotPast = (timeSlot, date) => {
     const today = new Date();
-    const selectedDateTime = new Date(date);
-    const [timeStr, period] = time.split(" ");
-    let [hours, minutes] = timeStr.split(":");
-    hours = parseInt(hours);
-    if (period === "PM" && hours !== 12) hours += 12;
-    if (period === "AM" && hours === 12) hours = 0;
-    selectedDateTime.setHours(hours, parseInt(minutes), 0, 0);
-    return selectedDateTime < today;
+    const selectedDateOnly = new Date(date);
+    selectedDateOnly.setHours(0, 0, 0, 0);
+    const todayDateOnly = new Date(today);
+    todayDateOnly.setHours(0, 0, 0, 0);
+    
+    if (selectedDateOnly > todayDateOnly) {
+      return false;
+    }
+    
+    if (selectedDateOnly.getTime() === todayDateOnly.getTime()) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      if (timeSlot.hour24 < currentHour) {
+        return true;
+      } else if (timeSlot.hour24 === currentHour && timeSlot.minute <= currentMinute) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Get the first available time slot for a given date
+  const getFirstAvailableTimeSlot = (date) => {
+    for (const slot of timeSlots) {
+      if (!isTimeSlotPast(slot, date)) {
+        return slot;
+      }
+    }
+    return null;
+  };
+
+  // Check if any time slot is available for the selected date
+  const hasAvailableTimeSlots = (date) => {
+    return timeSlots.some(slot => !isTimeSlotPast(slot, date));
+  };
+
+  // Check if a specific time is in the past for the selected date (for manual input)
+  const isManualTimePast = (timeValue, date) => {
+    const today = new Date();
+    const selectedDateOnly = new Date(date);
+    selectedDateOnly.setHours(0, 0, 0, 0);
+    const todayDateOnly = new Date(today);
+    todayDateOnly.setHours(0, 0, 0, 0);
+    
+    if (selectedDateOnly > todayDateOnly) {
+      return false;
+    }
+    
+    if (selectedDateOnly.getTime() === todayDateOnly.getTime()) {
+      const [hours, minutes] = timeValue.split(":");
+      const timeHour = parseInt(hours);
+      const timeMinute = parseInt(minutes);
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      if (timeHour < currentHour) {
+        return true;
+      } else if (timeHour === currentHour && timeMinute <= currentMinute) {
+        return true;
+      }
+    }
+    
+    return false;
   };
 
   // Validate date and time
@@ -182,15 +323,27 @@ export default function BookingPage() {
     todayDateOnly.setHours(0, 0, 0, 0);
 
     if (selectedDateOnly.getTime() === todayDateOnly.getTime() && time) {
-      if (isPastTime(time, date)) {
-        setDateError(
-          "Cannot book past times. Please select a future time.",
-        );
+      const isPast = isPastTime(time, date);
+      if (isPast) {
+        setDateError("Cannot book past times. Please select a future time.");
         return false;
       }
     }
     setDateError("");
     return true;
+  };
+
+  // Check if a time is in the past (for formatted time strings like "11:30 AM")
+  const isPastTime = (time, date) => {
+    const today = new Date();
+    const selectedDateTime = new Date(date);
+    const [timeStr, period] = time.split(" ");
+    let [hours, minutes] = timeStr.split(":");
+    hours = parseInt(hours);
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    selectedDateTime.setHours(hours, parseInt(minutes), 0, 0);
+    return selectedDateTime < today;
   };
 
   const days = getDaysInMonth(currentMonth);
@@ -213,10 +366,21 @@ export default function BookingPage() {
       setDateError("Cannot select past dates. Please choose a future date.");
       return;
     }
+    
+    if (!hasAvailableTimeSlots(date)) {
+      setDateError("All time slots for this date have passed. Please select a future date.");
+      return;
+    }
+    
     setSelectedDate(date);
     setManualDate(formatDateForInput(date));
     setShowManualInput(false);
     setDateError("");
+    
+    const firstAvailable = getFirstAvailableTimeSlot(date);
+    if (firstAvailable) {
+      setSelectedTime(firstAvailable.display);
+    }
   };
 
   const handleManualDateChange = (e) => {
@@ -226,21 +390,29 @@ export default function BookingPage() {
       const newDate = new Date(year, month - 1, day);
       if (isPastDate(newDate)) {
         setDateError("Cannot select past dates. Please choose a future date.");
+      } else if (!hasAvailableTimeSlots(newDate)) {
+        setDateError("All time slots for this date have passed. Please select a future date.");
       } else {
         setSelectedDate(newDate);
         setDateError("");
+        setManualTime("");
+        const firstAvailable = getFirstAvailableTimeSlot(newDate);
+        if (firstAvailable) {
+          setSelectedTime(firstAvailable.display);
+        }
       }
     }
   };
 
   const handleManualTimeChange = (e) => {
-    const newTime = e.target.value;
-    const [hours, minutes] = newTime.split(":");
+    const newTimeValue = e.target.value;
+    setManualTime(newTimeValue);
+    
+    const [hours, minutes] = newTimeValue.split(":");
     const hour = parseInt(hours);
     const period = hour >= 12 ? "PM" : "AM";
     const hour12 = hour % 12 || 12;
     const formattedTime = `${hour12}:${minutes} ${period}`;
-    setManualTime(newTime);
     setSelectedTime(formattedTime);
 
     const today = new Date();
@@ -250,10 +422,8 @@ export default function BookingPage() {
     todayDateOnly.setHours(0, 0, 0, 0);
 
     if (selectedDateOnly.getTime() === todayDateOnly.getTime()) {
-      if (isPastTime(formattedTime, selectedDate)) {
-        setDateError(
-          "Cannot book past times for today. Please select a future time.",
-        );
+      if (isManualTimePast(newTimeValue, selectedDate)) {
+        setDateError("Cannot book past times for today. Please select a future time.");
       } else {
         setDateError("");
       }
@@ -289,6 +459,9 @@ export default function BookingPage() {
     const newDate = new Date(selectedDate);
     newDate.setDate(selectedDate.getDate() - 7);
     if (!isPastDate(newDate)) {
+      if (!hasAvailableTimeSlots(newDate)) {
+        setDateError("All time slots for this date have passed. Please select a future date.");
+      }
       setSelectedDate(newDate);
       setManualDate(formatDateForInput(newDate));
       setDateError("");
@@ -306,6 +479,12 @@ export default function BookingPage() {
   };
 
   const handleBooking = async () => {
+    // Validate contact details first
+    if (!validateContactDetails()) {
+      setDateError("Please fill in all required contact information");
+      return;
+    }
+
     if (!serviceAddress) {
       setDateError("Please enter your service address");
       return;
@@ -334,6 +513,8 @@ export default function BookingPage() {
           address: serviceAddress,
           instructions: specialInstructions,
           hourlyRate: provider.hourlyRate,
+          phoneNumber: contactDetails.phoneNumber,
+          emergencyContact: contactDetails.emergencyContact
         },
         {
           headers: {
@@ -359,29 +540,6 @@ export default function BookingPage() {
       setBookingSuccess(false);
     }
   };
-
-  const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    let scrollTimeout;
-    const handleScroll = () => {
-      setIsScrolling(true);
-      clearTimeout(scrollTimeout);
-      scrollTimeout = setTimeout(() => {
-        setIsScrolling(false);
-      }, 150);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      clearTimeout(scrollTimeout);
-    };
-  }, []);
 
   if (!provider) {
     return (
@@ -438,14 +596,11 @@ export default function BookingPage() {
     });
   };
 
-  // Get user avatar for review - Now fetches real user profile image
   const getReviewerImage = (userEmail, userName) => {
-    // First check if there's a stored avatar in localStorage for this user
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         const currentUser = JSON.parse(storedUser);
-        // If the review is from the current logged-in user, use their avatar
         if (currentUser.email === userEmail && currentUser.avatar) {
           let avatarUrl = currentUser.avatar;
           if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
@@ -457,8 +612,6 @@ export default function BookingPage() {
         console.error("Error parsing user data:", error);
       }
     }
-    
-    // Fallback to UI Avatars API with user's name
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=3b82f6&color=fff&size=80&bold=true`;
   };
 
@@ -491,7 +644,6 @@ export default function BookingPage() {
       {/* HEADER */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-20 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          {/* Back Button and Logo */}
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate("/service-listing")}
@@ -499,7 +651,6 @@ export default function BookingPage() {
             >
               <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
             </button>
-
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg transition-transform hover:scale-105 duration-300">
                 <Home className="w-5 h-5 text-white" />
@@ -511,7 +662,6 @@ export default function BookingPage() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-4">
             <button className="relative p-2 hover:bg-gray-100 rounded-full transition-all duration-300 hover:scale-105">
               <Bell className="w-5 h-5 text-gray-600" />
@@ -578,7 +728,7 @@ export default function BookingPage() {
                       {provider.experience || "Experience not specified"}
                     </span>
                     <span className="flex items-center gap-1">
-                      <DollarSign className="w-4 h-4" /> $
+                      <DollarSign className="w-4 h-4" /> Rs.
                       {provider.hourlyRate || 0}/hr
                     </span>
                   </div>
@@ -607,12 +757,11 @@ export default function BookingPage() {
               </div>
             </div>
 
-            {/* REVIEWS SECTION - With real user profile images */}
+            {/* REVIEWS SECTION */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-blue-600" /> Client
-                  Reviews
+                  <MessageSquare className="w-4 h-4 text-blue-600" /> Client Reviews
                 </h3>
               </div>
               
@@ -670,40 +819,19 @@ export default function BookingPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[
-                  {
-                    icon: Shield,
-                    title: "Service Guarantee",
-                    desc: "30-day guarantee on all work",
-                  },
-                  {
-                    icon: Clock,
-                    title: "Punctuality",
-                    desc: "Always on-time arrival",
-                  },
-                  {
-                    icon: CheckCircle,
-                    title: "Clean Workspace",
-                    desc: "Leaves no mess behind",
-                  },
-                  {
-                    icon: Award,
-                    title: "Licensed & Insured",
-                    desc: "Fully certified professional",
-                  },
+                  { icon: Shield, title: "Service Guarantee", desc: "30-day guarantee on all work" },
+                  { icon: Clock, title: "Punctuality", desc: "Always on-time arrival" },
+                  { icon: CheckCircle, title: "Clean Workspace", desc: "Leaves no mess behind" },
+                  { icon: Award, title: "Licensed & Insured", desc: "Fully certified professional" },
                 ].map((item, index) => {
                   const Icon = item.icon;
                   return (
-                    <div
-                      key={index}
-                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 hover:scale-105 transition cursor-pointer"
-                    >
+                    <div key={index} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 hover:scale-105 transition cursor-pointer">
                       <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Icon className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-gray-800">
-                          {item.title}
-                        </h4>
+                        <h4 className="font-medium text-gray-800">{item.title}</h4>
                         <p className="text-sm text-gray-500">{item.desc}</p>
                       </div>
                     </div>
@@ -721,9 +849,7 @@ export default function BookingPage() {
                   <p className="text-sm text-gray-500">Service Rate</p>
                   <h2 className="text-3xl font-bold text-gray-800">
                     Rs. {provider.hourlyRate || 85}
-                    <span className="text-sm font-normal text-gray-500">
-                      /hour
-                    </span>
+                    <span className="text-sm font-normal text-gray-500">/hour</span>
                   </h2>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-600 px-3 py-1.5 rounded-full animate-pulse">
@@ -737,6 +863,8 @@ export default function BookingPage() {
                   <p className="text-xs text-red-600">{dateError}</p>
                 </div>
               )}
+
+              
 
               {/* Toggle between Calendar and Manual Input */}
               <div className="flex gap-2 mb-4">
@@ -759,31 +887,19 @@ export default function BookingPage() {
                 <>
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-4">
-                      <button
-                        onClick={handlePrevMonth}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
-                      >
+                      <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 rounded-lg">
                         <ChevronLeft className="w-5 h-5 text-gray-600" />
                       </button>
                       <h3 className="text-lg font-semibold text-gray-800">
-                        {currentMonth.toLocaleString("default", {
-                          month: "long",
-                          year: "numeric",
-                        })}
+                        {currentMonth.toLocaleString("default", { month: "long", year: "numeric" })}
                       </h3>
-                      <button
-                        onClick={handleNextMonth}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
-                      >
+                      <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 rounded-lg">
                         <ChevronRight className="w-5 h-5 text-gray-600" />
                       </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {weekDays.map((day) => (
-                        <div
-                          key={day}
-                          className="text-center text-xs font-medium text-gray-500 py-2"
-                        >
+                        <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
                           {day}
                         </div>
                       ))}
@@ -793,12 +909,22 @@ export default function BookingPage() {
                         const isSelectedDate = isSelected(date);
                         const isTodayDate = isToday(date);
                         const isPast = isPastDate(date);
+                        const hasNoSlots = !isPast && !hasAvailableTimeSlots(date);
+                        const isDisabled = !isCurrentMonth || isPast || hasNoSlots;
+                        
                         return (
                           <button
                             key={index}
                             onClick={() => handleDateSelect(date)}
-                            disabled={!isCurrentMonth || isPast}
-                            className={`h-10 rounded-lg text-sm font-medium transition-all duration-300 ${!isCurrentMonth ? "text-gray-300 cursor-not-allowed opacity-50" : ""} ${isPast ? "text-gray-300 cursor-not-allowed opacity-50" : "cursor-pointer"} ${isSelectedDate ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : ""} ${isTodayDate && !isSelectedDate && !isPast ? "border-2 border-blue-300 bg-blue-50 text-blue-600" : ""} ${!isSelectedDate && isCurrentMonth && !isPast ? "hover:bg-gray-100 hover:scale-105 text-gray-700" : ""}`}
+                            disabled={isDisabled}
+                            className={`h-10 rounded-lg text-sm font-medium transition-all duration-300
+                              ${!isCurrentMonth ? "text-gray-300 cursor-not-allowed opacity-50" : ""}
+                              ${isPast ? "text-gray-300 cursor-not-allowed opacity-50 bg-gray-100" : ""}
+                              ${hasNoSlots && !isPast ? "text-orange-400 cursor-not-allowed opacity-60 bg-orange-50 border border-orange-200" : ""}
+                              ${isSelectedDate && !isDisabled ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : ""}
+                              ${isTodayDate && !isSelectedDate && !isDisabled ? "border-2 border-blue-300 bg-blue-50 text-blue-600" : ""}
+                              ${!isSelectedDate && !isDisabled && !isPast && !hasNoSlots ? "hover:bg-gray-100 hover:scale-105 text-gray-700" : ""}
+                            `}
                           >
                             {date.getDate()}
                           </button>
@@ -806,42 +932,45 @@ export default function BookingPage() {
                       })}
                     </div>
                     <div className="flex justify-between gap-2 mt-4 pt-4 border-t border-gray-100">
-                      <button
-                        onClick={handlePrevWeek}
-                        className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
-                      >
+                      <button onClick={handlePrevWeek} className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
                         ← Previous Week
                       </button>
-                      <button
-                        onClick={handleNextWeek}
-                        className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
-                      >
+                      <button onClick={handleNextWeek} className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
                         Next Week →
                       </button>
                     </div>
                   </div>
 
-                  {/* Default Time Slots - Only in Calendar View */}
+                  {/* Default Time Slots */}
                   <div className="mb-6">
                     <p className="font-medium text-gray-700 text-sm mb-3 flex items-center gap-2">
                       <Clock className="w-4 h-4" /> Select Time
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {times.map((time) => (
-                        <button
-                          key={time}
-                          onClick={() => setSelectedTime(time)}
-                          className={`py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ${selectedTime === time ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105"}`}
-                        >
-                          {time}
-                        </button>
-                      ))}
+                      {timeSlots.map((slot) => {
+                        const isPast = isTimeSlotPast(slot, selectedDate);
+                        const isSelected = selectedTime === slot.display;
+                        return (
+                          <button
+                            key={slot.display}
+                            onClick={() => !isPast && setSelectedTime(slot.display)}
+                            disabled={isPast}
+                            className={`py-2.5 rounded-lg text-sm font-medium transition-all duration-300
+                              ${isSelected && !isPast ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : ""}
+                              ${!isSelected && !isPast ? "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105" : ""}
+                              ${isPast ? "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 line-through" : ""}
+                            `}
+                          >
+                            {slot.display}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Manual Input View - Only manual date and time */}
+              {/* Manual Input View */}
               {showManualInput && (
                 <div className="mb-6 space-y-4">
                   <div>
@@ -878,6 +1007,67 @@ export default function BookingPage() {
                 </div>
               )}
 
+              {/* CONTACT DETAILS SECTION - NEW */}
+              <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold text-gray-800">Contact Details</h3>
+                  <span className="text-xs text-red-500 ml-auto">* Required</span>
+                </div>
+                
+                {/* Phone Number Field - Required */}
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+                    <input
+                      type="tel"
+                      name="phoneNumber"
+                      value={contactDetails.phoneNumber}
+                      onChange={handleContactChange}
+                      placeholder="Enter your phone number"
+                      className={`w-full border ${contactErrors.phoneNumber ? 'border-red-500' : 'border-gray-200'} rounded-lg pl-10 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none`}
+                    />
+                  </div>
+                  {contactErrors.phoneNumber && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> {contactErrors.phoneNumber}
+                    </p>
+                  )}
+                  {loadingProfile && (
+                    <p className="text-xs text-gray-400 mt-1">Loading saved contact info...</p>
+                  )}
+                  {!loadingProfile && contactDetails.phoneNumber && (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> Using saved phone number
+                    </p>
+                  )}
+                </div>
+
+                {/* Emergency Contact Field - Optional */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Emergency Contact <span className="text-gray-400 text-xs">(Optional)</span>
+                  </label>
+                  <div className="relative">
+                    <AlertTriangle className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+                    <input
+                      type="tel"
+                      name="emergencyContact"
+                      value={contactDetails.emergencyContact}
+                      onChange={handleContactChange}
+                      placeholder="Emergency contact number"
+                      className="w-full border border-gray-200 rounded-lg pl-10 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    This number will be used only for urgent situations
+                  </p>
+                </div>
+              </div>
+
               {/* ADDRESS */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
@@ -895,8 +1085,7 @@ export default function BookingPage() {
               {/* NOTES */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" /> Special Instructions
-                  (Optional)
+                  <MessageSquare className="w-4 h-4" /> Special Instructions (Optional)
                 </label>
                 <textarea
                   rows="2"
@@ -915,8 +1104,7 @@ export default function BookingPage() {
                 {bookingSuccess ? "Processing..." : "Book Now →"}
               </button>
               <p className="text-xs text-gray-400 text-center mt-3">
-                You won't be charged yet. Payment will be collected after
-                service completion.
+                You won't be charged yet. Payment will be collected after service completion.
               </p>
             </div>
           </div>
@@ -924,10 +1112,7 @@ export default function BookingPage() {
       </div>
 
       {/* FOOTER */}
-      <footer
-        ref={footerRef}
-        className="bg-gradient-to-b from-gray-900 to-gray-950 text-gray-400 mt-12"
-      >
+      <footer ref={footerRef} className="bg-gradient-to-b from-gray-900 to-gray-950 text-gray-400 mt-12">
         <div className="max-w-7xl mx-auto px-4 py-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             <div>
@@ -938,8 +1123,7 @@ export default function BookingPage() {
                 <h3 className="text-xl font-semibold text-white">ServEase</h3>
               </div>
               <p className="text-sm leading-relaxed max-w-xs text-gray-400">
-                Your trusted platform for finding reliable local service
-                providers.
+                Your trusted platform for finding reliable local service providers.
               </p>
             </div>
             <div>
@@ -956,16 +1140,9 @@ export default function BookingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4 text-lg">
-                Policies
-              </h4>
+              <h4 className="text-white font-semibold mb-4 text-lg">Policies</h4>
               <ul className="space-y-3 text-sm">
-                {[
-                  "Privacy Policy",
-                  "Terms of Service",
-                  "Refund Policy",
-                  "Cookie Policy",
-                ].map((item) => (
+                {["Privacy Policy", "Terms of Service", "Refund Policy", "Cookie Policy"].map((item) => (
                   <li key={item}>
                     <button className="hover:text-white transition flex items-center gap-2">
                       <ChevronRightIcon className="w-3 h-3 text-blue-400" />
@@ -979,15 +1156,13 @@ export default function BookingPage() {
               <h4 className="text-white font-semibold mb-4 text-lg">Contact</h4>
               <ul className="space-y-4 text-sm">
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <Mail className="w-4 h-4 text-blue-400" />{" "}
-                  serveease2082@gmail.com
+                  <Mail className="w-4 h-4 text-blue-400" /> serveease2082@gmail.com
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
                   <Phone className="w-4 h-4 text-blue-400" /> +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <MapPinIcon className="w-4 h-4 text-blue-400" /> San
-                  Basantapur, Kathmandu
+                  <MapPinIcon className="w-4 h-4 text-blue-400" /> San Basantapur, Kathmandu
                 </li>
               </ul>
               <div className="flex gap-3 mt-8">
@@ -999,10 +1174,7 @@ export default function BookingPage() {
                 ].map((social, index) => {
                   const Icon = social.icon;
                   return (
-                    <button
-                      key={index}
-                      className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-gray-700 hover:scale-110 transition group"
-                    >
+                    <button key={index} className="w-10 h-10 bg-gray-800 rounded-xl flex items-center justify-center hover:bg-gray-700 hover:scale-110 transition group">
                       <Icon className="w-4 h-4 text-gray-400 group-hover:text-white" />
                     </button>
                   );
@@ -1012,9 +1184,7 @@ export default function BookingPage() {
           </div>
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm">
             <p>© 2024 ServEase. All rights reserved.</p>
-            <p className="text-xs text-gray-600 mt-2">
-              Made with ❤️ for better service experiences
-            </p>
+            <p className="text-xs text-gray-600 mt-2">Made with ❤️ for better service experiences</p>
           </div>
         </div>
       </footer>

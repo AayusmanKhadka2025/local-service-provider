@@ -65,39 +65,46 @@ const UserDashboard = () => {
   };
 
   // Load user data from localStorage
-  useEffect(() => {
-    const loadUserData = () => {
-      const storedUser = localStorage.getItem("user");
-      const token = localStorage.getItem("token");
-      const userType = localStorage.getItem("userType");
+  // In UserDashboard.jsx, update the loadUserData function:
 
-      if (!storedUser || !token || userType !== "user") {
-        navigate("/login");
-        return;
+useEffect(() => {
+  const loadUserData = () => {
+    const storedUser = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
+    const userType = localStorage.getItem("userType");
+
+    console.log("Loading user data:", { hasUser: !!storedUser, hasToken: !!token, userType });
+
+    if (!storedUser || !token || userType !== "user") {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      const userData = JSON.parse(storedUser);
+      console.log("User data loaded:", userData);
+      
+      let avatarUrl = userData.avatar;
+      if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
+        avatarUrl = `http://localhost:5050${avatarUrl}`;
+      } else if (!avatarUrl) {
+        avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
       }
 
-      try {
-        const userData = JSON.parse(storedUser);
-        let avatarUrl = userData.avatar;
-        if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
-          avatarUrl = `http://localhost:5050${avatarUrl}`;
-        } else if (!avatarUrl) {
-          avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
-        }
+      setUser({
+        name: userData.fullName || userData.name || "User",
+        email: userData.email || "",
+        avatar: avatarUrl,
+        _id: userData._id // Store user ID for debugging
+      });
+    } catch (error) {
+      console.error("Error parsing user data:", error);
+      navigate("/login");
+    }
+  };
 
-        setUser({
-          name: userData.fullName || userData.name || "User",
-          email: userData.email || "",
-          avatar: avatarUrl,
-        });
-      } catch (error) {
-        console.error("Error parsing user data:", error);
-        navigate("/login");
-      }
-    };
-
-    loadUserData();
-  }, [navigate]);
+  loadUserData();
+}, [navigate]);
 
   // Fetch user bookings
   useEffect(() => {

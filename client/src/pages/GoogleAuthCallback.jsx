@@ -21,11 +21,14 @@ const GoogleAuthCallback = () => {
       try {
         const user = JSON.parse(decodeURIComponent(userData));
         
-        // Store user data and token
+        // Store user data and token with correct format
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem("token", token);
         localStorage.setItem("userType", "user");
-
+        
+        // Also store user id separately for debugging
+        console.log("Google user stored:", { userId: user._id, email: user.email });
+        
         // Check if user is new for welcome message
         const isNewUser = user.isNewUser;
         

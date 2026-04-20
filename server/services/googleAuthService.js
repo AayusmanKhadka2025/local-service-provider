@@ -28,20 +28,33 @@ passport.use(new GoogleStrategy({
   },
   async (req, accessToken, refreshToken, profile, done) => {
     try {
+      console.log('Google profile received:', profile.id);
+      console.log('Profile data:', JSON.stringify(profile, null, 2));
+      
       const { id, displayName, emails, photos } = profile;
-      const email = emails[0].value;
+      const email = emails && emails[0] ? emails[0].value : null;
+      
+      if (!email) {
+        console.error('No email found in Google profile');
+        return done(new Error('No email provided by Google'), null);
+      }
+      
       const fullName = displayName;
-      const avatar = photos[0]?.value || '';
+      const avatar = photos && photos[0] ? photos[0].value : '';
+      
+      console.log('Processing user:', email);
       
       // Check if user exists
-      let user = await User.findOne({ email });
+      let user = await User.findOne({ email: email.toLowerCase() });
+      let isNewUser = false;
       
       if (!user) {
+        console.log('Creating new user for:', email);
         // Create new user for signup
         user = await User.create({
           fullName,
-          email,
-          password: Math.random().toString(36).slice(-16), // Random password for Google users
+          email: email.toLowerCase(),
+          password: Math.random().toString(36).slice(-16),
           phone: '',
           gender: 'Prefer not to say',
           country: 'Nepal',
@@ -53,20 +66,28 @@ passport.use(new GoogleStrategy({
           googleId: id,
           isGoogleAccount: true
         });
-        
-        return done(null, { user, isNewUser: true });
-      }
-      
-      // Update Google ID if not set (for existing users)
-      if (!user.googleId) {
-        user.googleId = id;
-        if (avatar && !user.avatar) {
-          user.avatar = avatar;
+        isNewUser = true;
+        console.log('New user created with ID:', user._id);
+      } else {
+        console.log('Existing user found:', user._id);
+        // Update Google ID if not set
+        if (!user.googleId) {
+          user.googleId = id;
+          if (avatar && !user.avatar) {
+            user.avatar = avatar;
+          }
+          await user.save();
+          console.log('User updated with Google ID');
         }
-        await user.save();
       }
       
-      return done(null, { user, isNewUser: false });
+      // Return the user object with _id properly set
+      const userObject = user.toObject();
+      userObject.isNewUser = isNewUser;
+      
+      console.log('Returning user object with ID:', userObject._id);
+      
+      return done(null, userObject);
       
     } catch (error) {
       console.error('Google Strategy Error:', error);
@@ -77,7 +98,7 @@ passport.use(new GoogleStrategy({
 
 // Serialize user
 passport.serializeUser((user, done) => {
-  done(null, user.user._id);
+  done(null, user._id);
 });
 
 // Deserialize user

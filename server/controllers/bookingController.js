@@ -21,6 +21,7 @@ const validTransitions = {
 };
 
 // Create a new booking
+// Create a new booking
 const createBooking = async (req, res) => {
   try {
     const {
@@ -31,6 +32,8 @@ const createBooking = async (req, res) => {
       address,
       instructions,
       hourlyRate,
+      phoneNumber,
+      emergencyContact,
     } = req.body;
 
     const userId = req.userId;
@@ -40,6 +43,18 @@ const createBooking = async (req, res) => {
         success: false,
         message: "User not found",
       });
+    }
+
+    // Update user's phone number if provided and different
+    if (phoneNumber && user.phone !== phoneNumber) {
+      user.phone = phoneNumber;
+      await user.save();
+    }
+
+    // Update emergency contact if provided
+    if (emergencyContact && user.emergencyContact !== emergencyContact) {
+      user.emergencyContact = emergencyContact;
+      await user.save();
     }
 
     const provider = await Provider.findById(providerId);
@@ -95,7 +110,8 @@ const createBooking = async (req, res) => {
         userId: user._id,
         name: user.fullName || `${user.firstName} ${user.lastName}`,
         email: user.email,
-        phone: user.phone || "",
+        phone: phoneNumber || user.phone || "",
+        emergencyContact: emergencyContact || user.emergencyContact || "",
         address: address,
         avatar: user.avatar || "",
       },

@@ -18,37 +18,84 @@ const getFullAvatarUrl = (avatarPath) => {
 };
 
 // Generate JWT Token for users
+// Generate JWT Token for users
 const generateUserToken = (userId, email, fullName) => {
+  // Make sure userId is a string and exists
+  if (!userId) {
+    console.error('Cannot generate token: userId is missing');
+    return null;
+  }
+  
+  const userIdStr = userId.toString();
+  console.log('Generating token for userId:', userIdStr);
+  
   return jwt.sign(
-    { id: userId, email, fullName, role: "user" },
+    { 
+      id: userIdStr,  // This is what the middleware looks for
+      userId: userIdStr,  // Backup field
+      email, 
+      fullName, 
+      role: "user" 
+    },
     process.env.JWT_SECRET,
     { expiresIn: "7d" },
   );
 };
 
 // Google Auth Success Handler
-const googleAuthSuccess = async (req, res) => {
+// Google Auth Success Handler
+// Google Auth Success Handler
+const googleAuthSuccess = async (req, res, isNewUser = false) => {
   try {
-    const token = generateUserToken(req.user._id, req.user.email, req.user.fullName);
+    // Check if user data exists in the request
+    const user = req.user;
+    
+    if (!user) {
+      console.error('No user data in request');
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=Authentication failed`);
+    }
+
+    console.log('Google auth success for user:', { 
+      id: user._id, 
+      email: user.email, 
+      isNewUser,
+      userIdType: typeof user._id
+    });
+
+    // Make sure we have a valid user ID
+    if (!user._id) {
+      console.error('User ID is missing');
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=User ID missing`);
+    }
+
+    // Generate token with the correct user ID
+    const token = generateUserToken(user._id, user.email, user.fullName);
+    
+    console.log('Generated token for user:', user._id);
     
     const userWithoutPassword = {
-      _id: req.user._id,
-      fullName: req.user.fullName,
-      email: req.user.email,
-      phone: req.user.phone || '',
-      gender: req.user.gender || 'Male',
-      country: req.user.country || 'Nepal',
-      province: req.user.province || '',
-      city: req.user.city || '',
-      area: req.user.area || '',
-      landmark: req.user.landmark || '',
-      avatar: getFullAvatarUrl(req.user.avatar),
-      createdAt: req.user.createdAt,
-      isNewUser: req.query.isNewUser === 'true'
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone || '',
+      gender: user.gender || 'Male',
+      country: user.country || 'Nepal',
+      province: user.province || '',
+      city: user.city || '',
+      area: user.area || '',
+      landmark: user.landmark || '',
+      avatar: getFullAvatarUrl(user.avatar),
+      createdAt: user.createdAt,
+      isNewUser: isNewUser,
+      isGoogleAccount: user.isGoogleAccount || true
     };
 
+    // Encode user data for URL
+    const encodedUser = encodeURIComponent(JSON.stringify(userWithoutPassword));
+    
     // Redirect to frontend with token and user data
-    const redirectUrl = `${process.env.FRONTEND_URL}/google-auth-callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userWithoutPassword))}`;
+    const redirectUrl = `${process.env.FRONTEND_URL}/google-auth-callback?token=${token}&user=${encodedUser}`;
+    console.log('Redirecting to frontend with token');
     res.redirect(redirectUrl);
     
   } catch (error) {
@@ -583,6 +630,8 @@ const loginUser = async (req, res) => {
   }
 };
 
+
+
 module.exports = {
   registerUser,
   loginUser,
@@ -594,4 +643,5 @@ module.exports = {
   resetPassword,
   googleAuthSuccess,
   googleAuthFailure,
+  
 };

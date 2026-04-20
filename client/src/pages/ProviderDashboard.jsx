@@ -31,7 +31,7 @@ import {
   Play,
   Hourglass,
   TrendingUp,
-  Shield
+  Shield,
 } from "lucide-react";
 
 const ProviderDashboard = () => {
@@ -126,11 +126,13 @@ const ProviderDashboard = () => {
         setProvider({
           firstName: providerData.firstName || "",
           lastName: providerData.lastName || "",
-          fullName: `${providerData.firstName || ""} ${providerData.lastName || ""}`.trim(),
+          fullName:
+            `${providerData.firstName || ""} ${providerData.lastName || ""}`.trim(),
           email: providerData.email || "",
           phone: providerData.phone || "",
           role: "Service Provider",
-          avatar: providerData.profileImage ||
+          avatar:
+            providerData.profileImage ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(providerData.firstName || "Provider")}&background=3b82f6&color=fff&size=100`,
           rating: providerData.rating || 0,
           category: providerData.category || "",
@@ -142,7 +144,7 @@ const ProviderDashboard = () => {
           hourlyRate: providerData.hourlyRate || 0,
           serviceArea: providerData.serviceArea || "",
           serviceTags: providerData.serviceTags || [],
-          isVerified: providerData.isVerified || false
+          isVerified: providerData.isVerified || false,
         });
       } catch (error) {
         console.error("Error parsing provider data:", error);
@@ -186,9 +188,12 @@ const ProviderDashboard = () => {
           <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Hourglass className="w-10 h-10 text-yellow-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Pending Verification</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Pending Verification
+          </h2>
           <p className="text-gray-600 mb-4">
-            Your account is awaiting admin approval. You will be notified once your account is verified.
+            Your account is awaiting admin approval. You will be notified once
+            your account is verified.
           </p>
           <p className="text-sm text-gray-500">
             This process usually takes 24-48 hours. Thank you for your patience.
@@ -617,11 +622,15 @@ const ProviderDashboard = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">Total Earnings</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">Rs. 4,250</p>
+                <p className="text-3xl font-bold text-gray-800 mt-2">
+                  Rs. 4,250
+                </p>
               </div>
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">This Month</p>
-                <p className="text-3xl font-bold text-gray-800 mt-2">Rs. 1,280</p>
+                <p className="text-3xl font-bold text-gray-800 mt-2">
+                  Rs. 1,280
+                </p>
               </div>
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
                 <p className="text-sm text-gray-600">Average per Job</p>
@@ -958,7 +967,7 @@ const BookingCard = ({
               </button>
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <Phone className="w-3 h-3" />
-                <span>{booking.user.phone}</span>
+                <span>{booking.user.phone || "No phone"}</span>
               </div>
             </div>
           </div>
@@ -1010,7 +1019,6 @@ const BookingCard = ({
                   <p className="text-xs font-semibold text-green-600">
                     <span className="font-medium">Total:</span>{" "}
                     {formatPrice(booking.calculatedAmount)}
-                    
                   </p>
                 )}
               </div>
@@ -1097,6 +1105,7 @@ const ProfileField = ({ label, value }) => (
 );
 
 // User Modal Component
+// User Modal Component - Updated with Emergency Contact
 const UserModal = ({
   user,
   onClose,
@@ -1144,8 +1153,15 @@ const UserModal = ({
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
                 <Phone className="w-4 h-4" />
-                <span>{user.phone}</span>
+                <span>{user.phone || "Not provided"}</span>
               </div>
+              {/* Emergency Contact - New Field */}
+              {user.emergencyContact && (
+                <div className="flex items-center gap-2 text-sm text-orange-600 mt-1">
+                  <Phone className="w-4 h-4" />
+                  <span className="font-medium">{user.emergencyContact}</span>
+                </div>
+              )}
             </div>
           </div>
 

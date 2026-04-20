@@ -15,7 +15,7 @@ const {
 
 const router = express.Router();
 
-// Register route (optional - for direct registration)
+// Register route
 router.post('/register', registerUser);
 
 // Login route
@@ -42,8 +42,9 @@ router.get('/google/callback',
     session: false
   }),
   (req, res) => {
-    // Check if user is new
-    const isNewUser = req.user.isNewUser || false;
+    console.log('Callback received, user object:', req.user);
+    const isNewUser = req.user?.isNewUser || false;
+    // Pass both req and res to the handler
     googleAuthSuccess(req, res, isNewUser);
   }
 );

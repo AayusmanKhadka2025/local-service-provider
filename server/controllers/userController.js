@@ -55,7 +55,8 @@ const updateProfile = async (req, res) => {
       city, 
       area, 
       landmark,
-      avatar 
+      avatar,
+      emergencyContact
     } = req.body;
     
     const email = req.body.email;
@@ -82,6 +83,7 @@ const updateProfile = async (req, res) => {
     if (city !== undefined) user.city = city;
     if (area !== undefined) user.area = area;
     if (landmark !== undefined) user.landmark = landmark;
+    if (emergencyContact !== undefined) user.emergencyContact = emergencyContact;
     
     // Handle avatar update
     if (avatar && avatar !== user.avatar) {

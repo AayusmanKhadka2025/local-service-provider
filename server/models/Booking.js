@@ -1,131 +1,142 @@
 // server/models/Booking.js
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const bookingSchema = new mongoose.Schema({
   user: {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
+      ref: "User",
+      required: true,
     },
     name: {
       type: String,
-      required: true
+      required: true,
     },
     email: {
       type: String,
-      required: true
+      required: true,
     },
     phone: {
       type: String,
-      default: ''
+      default: "",
+    },
+    emergencyContact: {
+      type: String,
+      default: "",
     },
     address: {
       type: String,
-      required: true
+      required: true,
     },
     avatar: {
       type: String,
-      default: ''
-    }
+      default: "",
+    },
   },
   provider: {
     providerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Provider',
-      required: true
+      ref: "Provider",
+      required: true,
     },
     name: {
       type: String,
-      required: true
+      required: true,
     },
     category: {
       type: String,
-      required: true
+      required: true,
     },
     hourlyRate: {
       type: Number,
-      required: true
+      required: true,
     },
     avatar: {
       type: String,
-      default: ''
-    }
+      default: "",
+    },
   },
   service: {
     type: String,
-    required: true
+    required: true,
   },
   date: {
     type: Date,
-    required: true
+    required: true,
   },
   time: {
     type: String,
-    required: true
+    required: true,
   },
   instructions: {
     type: String,
-    default: ''
+    default: "",
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'in_progress', 'completed', 'rejected', 'cancelled'],
-    default: 'pending'
+    enum: [
+      "pending",
+      "confirmed",
+      "in_progress",
+      "completed",
+      "rejected",
+      "cancelled",
+    ],
+    default: "pending",
   },
   totalAmount: {
     type: Number,
-    required: true
+    required: true,
   },
   // Service tracking fields
   startTime: {
     type: Date,
-    default: null
+    default: null,
   },
   endTime: {
     type: Date,
-    default: null
+    default: null,
   },
   duration: {
     type: Number, // Duration in hours
-    default: 0
+    default: 0,
   },
   // server/models/Booking.js - Add this field if you want to store hours charged
-hoursCharged: {
-  type: Number,
-  default: 0
-},
+  hoursCharged: {
+    type: Number,
+    default: 0,
+  },
   calculatedAmount: {
     type: Number,
-    default: 0
+    default: 0,
   },
   // User review fields
   rating: {
     type: Number,
     min: 0,
     max: 5,
-    default: null
+    default: null,
   },
   review: {
     type: String,
-    default: ''
+    default: "",
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Update timestamp on save
-bookingSchema.pre('save', function(next) {
+bookingSchema.pre("save", function (next) {
   this.updatedAt = new Date();
   next();
 });
 
-const Booking = mongoose.model('Booking', bookingSchema);
+const Booking = mongoose.model("Booking", bookingSchema);
 
 module.exports = Booking;
