@@ -1,5 +1,4 @@
-// client/src/pages/UserDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -29,12 +28,15 @@ import {
   Shield,
   ChevronDown,
   ChevronUp,
+  Menu,
+  Play,
 } from "lucide-react";
 import ProfileSettings from "./ProfileSettings";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState({
     name: "Loading...",
     email: "",
@@ -50,6 +52,12 @@ const UserDashboard = () => {
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
   
+  // Notification State
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationRef = useRef(null);
+  
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState({
     upcoming: false,
@@ -64,49 +72,126 @@ const UserDashboard = () => {
     }, 3000);
   };
 
-  // Load user data from localStorage
-  // In UserDashboard.jsx, update the loadUserData function:
-
-useEffect(() => {
-  const loadUserData = () => {
-    const storedUser = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
-    const userType = localStorage.getItem("userType");
-
-    console.log("Loading user data:", { hasUser: !!storedUser, hasToken: !!token, userType });
-
-    if (!storedUser || !token || userType !== "user") {
-      navigate("/login");
-      return;
-    }
-
-    try {
-      const userData = JSON.parse(storedUser);
-      console.log("User data loaded:", userData);
-      
-      let avatarUrl = userData.avatar;
-      if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
-        avatarUrl = `http://localhost:5050${avatarUrl}`;
-      } else if (!avatarUrl) {
-        avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
       }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-      setUser({
-        name: userData.fullName || userData.name || "User",
-        email: userData.email || "",
-        avatar: avatarUrl,
-        _id: userData._id // Store user ID for debugging
-      });
-    } catch (error) {
-      console.error("Error parsing user data:", error);
-      navigate("/login");
-    }
+  // Load notifications from localStorage on mount
+  useEffect(() => {
+    const loadNotificationsFromStorage = () => {
+      const storedNotifications = localStorage.getItem("user_notifications");
+      if (storedNotifications) {
+        try {
+          const parsed = JSON.parse(storedNotifications);
+          setNotifications(parsed);
+          setUnreadCount(parsed.filter(n => !n.read).length);
+        } catch (e) {
+          console.error("Error loading notifications:", e);
+        }
+      }
+    };
+    
+    loadNotificationsFromStorage();
+  }, []);
+
+  // Save notifications to localStorage
+  const saveNotificationsToStorage = (updatedNotifications) => {
+    localStorage.setItem("user_notifications", JSON.stringify(updatedNotifications));
   };
 
-  loadUserData();
-}, [navigate]);
+  // Generate unique notification ID
+  const generateNotificationId = (bookingId, type) => {
+    return `${bookingId}_${type}`;
+  };
 
-  // Fetch user bookings
+  // Check if notification already exists
+  const notificationExists = (notificationsList, bookingId, type) => {
+    return notificationsList.some(n => n.id === generateNotificationId(bookingId, type));
+  };
+
+  // Create notification for booking
+  const createNotification = (booking, type, title, message, time) => {
+    const notificationId = generateNotificationId(booking._id, type);
+    
+    // Don't add if already exists
+    if (notificationExists(notifications, booking._id, type)) {
+      return null;
+    }
+    
+    return {
+      id: notificationId,
+      type: type,
+      title: title,
+      message: message,
+      time: new Date(time),
+      read: false,
+      bookingId: booking._id,
+      providerName: booking.provider.name,
+      bookingStatus: booking.status,
+    };
+  };
+
+  // Add notification to list
+  const addNotification = (newNotification) => {
+    if (!newNotification) return;
+    
+    setNotifications(prev => {
+      // Check again in case of race condition
+      if (notificationExists(prev, newNotification.bookingId, newNotification.type)) {
+        return prev;
+      }
+      const updated = [newNotification, ...prev];
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(prev => prev + 1);
+  };
+
+  // Load user data from localStorage
+  useEffect(() => {
+    const loadUserData = () => {
+      const storedUser = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      const userType = localStorage.getItem("userType");
+
+      if (!storedUser || !token || userType !== "user") {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        const userData = JSON.parse(storedUser);
+        
+        let avatarUrl = userData.avatar;
+        if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
+          avatarUrl = `http://localhost:5050${avatarUrl}`;
+        } else if (!avatarUrl) {
+          avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.fullName || "User")}&background=3b82f6&color=fff&size=100`;
+        }
+
+        setUser({
+          name: userData.fullName || userData.name || "User",
+          email: userData.email || "",
+          avatar: avatarUrl,
+          _id: userData._id
+        });
+      } catch (error) {
+        console.error("Error parsing user data:", error);
+        navigate("/login");
+      }
+    };
+
+    loadUserData();
+  }, [navigate]);
+
+  // Fetch user bookings and create notifications
   useEffect(() => {
     const fetchBookings = async () => {
       try {
@@ -120,7 +205,100 @@ useEffect(() => {
         );
 
         if (response.data.success) {
-          setBookings(response.data.bookings);
+          const bookingsData = response.data.bookings;
+          setBookings(bookingsData);
+          
+          // Load existing notifications from storage
+          const existingNotifications = JSON.parse(localStorage.getItem("user_notifications") || "[]");
+          const existingIds = new Set(existingNotifications.map(n => n.id));
+          
+          // Create notifications from bookings (only for status changes)
+          const newNotifications = [];
+          
+          bookingsData.forEach((booking) => {
+            // Notification for booking acceptance (confirmed)
+            if (booking.status === "confirmed") {
+              const notificationId = generateNotificationId(booking._id, "booking_confirmed");
+              if (!existingIds.has(notificationId)) {
+                newNotifications.push({
+                  id: notificationId,
+                  type: "booking_confirmed",
+                  title: "Booking Accepted! ✅",
+                  message: `Your booking with ${booking.provider.name} has been accepted. They will start service on ${new Date(booking.date).toLocaleDateString()} at ${booking.time}.`,
+                  time: new Date(booking.updatedAt || booking.createdAt),
+                  read: false,
+                  bookingId: booking._id,
+                  providerName: booking.provider.name,
+                });
+              }
+            }
+            
+            // Notification for service started
+            if (booking.status === "in_progress" && booking.startTime) {
+              const notificationId = generateNotificationId(booking._id, "service_started");
+              if (!existingIds.has(notificationId)) {
+                newNotifications.push({
+                  id: notificationId,
+                  type: "service_started",
+                  title: "Service Started! 🔧",
+                  message: `${booking.provider.name} has started working on your ${booking.service} service.`,
+                  time: new Date(booking.startTime),
+                  read: false,
+                  bookingId: booking._id,
+                  providerName: booking.provider.name,
+                });
+              }
+            }
+            
+            // Notification for service completed
+            if (booking.status === "completed" && booking.endTime) {
+              const notificationId = generateNotificationId(booking._id, "service_completed");
+              if (!existingIds.has(notificationId)) {
+                newNotifications.push({
+                  id: notificationId,
+                  type: "service_completed",
+                  title: "Service Completed! 🎉",
+                  message: `${booking.provider.name} has completed your ${booking.service} service. Please leave a review!`,
+                  time: new Date(booking.endTime),
+                  read: false,
+                  bookingId: booking._id,
+                  providerName: booking.provider.name,
+                });
+              }
+            }
+            
+            // Notification for booking rejection
+            if (booking.status === "rejected") {
+              const notificationId = generateNotificationId(booking._id, "booking_rejected");
+              if (!existingIds.has(notificationId)) {
+                newNotifications.push({
+                  id: notificationId,
+                  type: "booking_rejected",
+                  title: "Booking Rejected ❌",
+                  message: `Sorry, ${booking.provider.name} could not accept your booking request. Please try booking another provider.`,
+                  time: new Date(booking.updatedAt || booking.createdAt),
+                  read: false,
+                  bookingId: booking._id,
+                  providerName: booking.provider.name,
+                });
+              }
+            }
+          });
+          
+          // Add all new notifications
+          if (newNotifications.length > 0) {
+            newNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+            setNotifications(prev => {
+              const updated = [...newNotifications, ...prev];
+              saveNotificationsToStorage(updated);
+              return updated;
+            });
+            setUnreadCount(prev => prev + newNotifications.filter(n => !n.read).length);
+          } else {
+            // If no new notifications, load existing ones
+            setNotifications(existingNotifications);
+            setUnreadCount(existingNotifications.filter(n => !n.read).length);
+          }
         }
       } catch (error) {
         console.error("Error fetching bookings:", error);
@@ -132,6 +310,75 @@ useEffect(() => {
 
     fetchBookings();
   }, []);
+
+  // Mark notification as read
+  const markAsRead = (notificationId) => {
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
+        notif.id === notificationId ? { ...notif, read: true } : notif
+      );
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(notif => ({ ...notif, read: true }));
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(0);
+    showToast("All notifications marked as read", "success");
+  };
+
+  // Handle notification click
+  const handleNotificationClick = (notification) => {
+    markAsRead(notification.id);
+    setShowNotifications(false);
+    
+    // Navigate to relevant section or show provider details
+    if (notification.bookingId) {
+      const booking = bookings.find(b => b._id === notification.bookingId);
+      if (booking && notification.type === "service_completed") {
+        handleReviewClick(booking);
+      } else if (booking) {
+        handleProviderClick(booking.provider, booking);
+      }
+    }
+  };
+
+  // Format time for notifications
+  const formatNotificationTime = (date) => {
+    const now = new Date();
+    const diffMs = now - new Date(date);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  };
+
+  // Get notification icon and color based on type
+  const getNotificationStyle = (type) => {
+    switch(type) {
+      case "booking_confirmed":
+        return { icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" };
+      case "service_started":
+        return { icon: Play, color: "text-blue-600", bgColor: "bg-blue-100" };
+      case "service_completed":
+        return { icon: CheckCircle, color: "text-purple-600", bgColor: "bg-purple-100" };
+      case "booking_rejected":
+        return { icon: XCircle, color: "text-red-600", bgColor: "bg-red-100" };
+      default:
+        return { icon: Bell, color: "text-gray-600", bgColor: "bg-gray-100" };
+    }
+  };
 
   const handleProfileUpdate = (updatedUser) => {
     let avatarUrl = updatedUser.avatar;
@@ -496,8 +743,8 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+            {/* Stats Grid - Responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
               {stats.map((stat) => {
                 const Icon = stat.icon;
                 const colors = {
@@ -506,12 +753,12 @@ useEffect(() => {
                   green: "from-green-500 to-green-400",
                 };
                 return (
-                  <div key={stat.label} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className={`w-12 h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-4`}>
-                      <Icon className="w-6 h-6 text-white" />
+                  <div key={stat.label} className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
+                    <div className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4`}>
+                      <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
-                    <p className="text-sm text-gray-500">{stat.label}</p>
-                    <h2 className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</h2>
+                    <p className="text-xs md:text-sm text-gray-500">{stat.label}</p>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">{stat.value}</h2>
                   </div>
                 );
               })}
@@ -530,8 +777,8 @@ useEffect(() => {
 
       case "support":
         return (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Help & Support</h2>
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 md:p-8">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">Help & Support</h2>
             <div className="space-y-6">
               <div className="border-b pb-6">
                 <h3 className="font-semibold text-gray-800 mb-4">Frequently Asked Questions</h3>
@@ -565,7 +812,7 @@ useEffect(() => {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Provider Details Modal */}
       {showProviderModal && selectedProvider && (
         <ProviderModal
@@ -596,8 +843,18 @@ useEffect(() => {
         />
       )}
 
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-72 bg-white/90 backdrop-blur-sm flex-col p-6 fixed left-0 top-0 h-screen border-r border-gray-200 shadow-lg">
+      {/* Mobile Menu Button */}
+      <div className="md:hidden fixed top-4 left-4 z-50">
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 bg-white rounded-xl shadow-lg border border-gray-200"
+        >
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex w-72 bg-white/90 backdrop-blur-sm flex-col p-6 fixed left-0 top-0 h-screen border-r border-gray-200 shadow-lg overflow-y-auto">
         <div className="flex items-center gap-2 mb-8">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
             <Home className="w-5 h-5 text-white" />
@@ -640,42 +897,178 @@ useEffect(() => {
         </button>
       </aside>
 
-      <main className="flex-1 ml-0 md:ml-72 overflow-y-auto">
-        <header className="bg-white/90 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200">
-          <div className="px-8 py-4 flex justify-between items-center">
+      {/* Mobile Sidebar */}
+      {mobileMenuOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+          <aside className="fixed top-0 left-0 w-72 bg-white h-full z-40 shadow-xl md:hidden overflow-y-auto">
+            <div className="flex flex-col h-full p-6">
+              <div className="flex items-center gap-2 mb-8">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
+                  <Home className="w-5 h-5 text-white" />
+                </div>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h2>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
+                <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" alt={user.name} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{user.name}</p>
+                  <p className="text-xs text-blue-600 font-medium truncate">{user.email}</p>
+                </div>
+              </div>
+
+              <nav className="space-y-1 flex-1">
+                {navigation.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                        activeTab === item.id
+                          ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md"
+                          : "text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span className="font-medium">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl">
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Log Out</span>
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {/* Main Content */}
+      <main className="md:ml-72 min-h-screen">
+        {/* Header with Notification */}
+        <header className="bg-white/90 backdrop-blur-sm sticky top-0 z-20 border-b border-gray-200">
+          <div className="px-4 md:px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                 {activeTab === "profile" ? "Profile Settings" : `Welcome back, ${user.name.split(" ")[0]}! 👋`}
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-xs md:text-sm text-gray-500 mt-1">
                 {activeTab === "profile" ? "Manage your personal details" : "Here's what's happening with your bookings"}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <button onClick={handleNewBookingClick} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition shadow-md">
-                <PlusCircle className="w-5 h-5" />
-                <span>New Booking</span>
+              <button onClick={handleNewBookingClick} className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition shadow-md text-sm md:text-base">
+                <PlusCircle className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="hidden sm:inline">New Booking</span>
               </button>
-              <button className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Bell className="w-6 h-6 text-gray-600" />
-                {upcomingCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md">
-                    {upcomingCount}
-                  </span>
+              
+              {/* Notification Icon with Panel */}
+              <div className="relative" ref={notificationRef}>
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 hover:bg-gray-100 rounded-full transition-all duration-300 hover:scale-105"
+                >
+                  <Bell className="w-5 h-5 md:w-6 md:h-6 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md animate-pulse">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification Panel */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-fadeIn">
+                    <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-800">Notifications</h3>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllAsRead}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium transition"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bell className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-gray-500">No notifications</p>
+                          <p className="text-xs text-gray-400 mt-1">Updates about your bookings will appear here</p>
+                        </div>
+                      ) : (
+                        notifications.map((notification) => {
+                          const { icon: Icon, color, bgColor } = getNotificationStyle(notification.type);
+                          return (
+                            <div
+                              key={notification.id}
+                              onClick={() => handleNotificationClick(notification)}
+                              className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${
+                                !notification.read ? "bg-blue-50/30" : ""
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
+                                  <Icon className={`w-5 h-5 ${color}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-800">{notification.title}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                                  <p className="text-xs text-gray-400 mt-2">
+                                    {formatNotificationTime(notification.time)}
+                                  </p>
+                                </div>
+                                {!notification.read && (
+                                  <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {notifications.length > 0 && (
+                      <div className="p-3 bg-gray-50 border-t border-gray-100 text-center">
+                        <button
+                          onClick={() => setShowNotifications(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </header>
 
-        <div className="p-8">{renderContent()}</div>
+        <div className="p-4 md:p-8">
+          {renderContent()}
+        </div>
       </main>
 
       <style>{`
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         @keyframes scaleIn {
           from { transform: scale(0.9); opacity: 0; }
@@ -693,7 +1086,7 @@ useEffect(() => {
   );
 };
 
-// Booking Card Component
+// Booking Card Component (updated with responsive design)
 const BookingCard = ({
   booking,
   type,
@@ -715,22 +1108,22 @@ const BookingCard = ({
   const hasReviewed = booking.rating && booking.rating !== null;
 
   return (
-    <div className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all border border-gray-100">
+    <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition-all border border-gray-100">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={onProviderClick} className="w-12 h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer">
+            <button onClick={onProviderClick} className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer">
               <img src={getProviderImage(booking.provider)} className="w-full h-full object-cover" alt={booking.provider.name} />
             </button>
             <div>
-              <button onClick={onProviderClick} className="font-semibold text-gray-800 hover:text-blue-600 transition text-left">
+              <button onClick={onProviderClick} className="font-semibold text-gray-800 hover:text-blue-600 transition text-left text-sm md:text-base">
                 {booking.provider.name}
               </button>
               <p className="text-xs text-blue-600">{booking.service}</p>
             </div>
           </div>
-          <div className="space-y-1 ml-15">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="space-y-1 ml-12 md:ml-15">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <Calendar className="w-3 h-3" />
               <span>{formatDate(booking.date)}</span>
               <Clock className="w-3 h-3 ml-2" />
@@ -748,26 +1141,26 @@ const BookingCard = ({
           </div>
         </div>
 
-        <div className="text-right min-w-[160px]">
-          <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${statusColor}`}>
+        <div className="text-right min-w-[140px] md:min-w-[160px]">
+          <span className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 text-xs font-medium rounded-full ${statusColor}`}>
             <CheckCircle className="w-3 h-3" />
             {statusLabel}
           </span>
-          <p className="text-lg font-bold text-gray-800 mt-2">
+          <p className="text-base md:text-lg font-bold text-gray-800 mt-2">
             {booking.calculatedAmount > 0 ? formatPrice(booking.calculatedAmount) : formatPrice(booking.totalAmount)}
           </p>
           
           {type === "upcoming" && canCancel && (
-            <button onClick={onCancel} className="mt-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto">
-              <XCircle className="w-4 h-4" />
-              Cancel Booking
+            <button onClick={onCancel} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto">
+              <XCircle className="w-3 h-3 md:w-4 md:h-4" />
+              Cancel
             </button>
           )}
 
           {type === "history" && canReview && (
-            <button onClick={onReview} className="mt-2 px-4 py-2 bg-green-50 text-green-600 rounded-lg text-sm font-medium hover:bg-green-100 transition flex items-center gap-1 mx-auto">
-              <ThumbsUp className="w-4 h-4" />
-              Write a Review
+            <button onClick={onReview} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-50 text-green-600 rounded-lg text-xs md:text-sm font-medium hover:bg-green-100 transition flex items-center gap-1 mx-auto">
+              <ThumbsUp className="w-3 h-3 md:w-4 md:h-4" />
+              Review
             </button>
           )}
 
@@ -793,7 +1186,7 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
   const statusLabel = getStatusLabel(booking.status);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
           <div className="flex justify-between items-start">
@@ -803,7 +1196,7 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
             </button>
           </div>
         </div>
-        <div className="p-6">
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
           <div className="flex items-center gap-4 mb-6">
             <img src={getProviderImage(provider)} className="w-20 h-20 rounded-full border-4 border-blue-100 object-cover" alt={provider.name} />
             <div>
@@ -866,7 +1259,7 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
 // Review Modal Component
 const ReviewModal = ({ booking, ratingValue, setRatingValue, reviewText, setReviewText, onSubmit, onClose, renderStars }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
           <div className="flex justify-between items-start">
