@@ -1,5 +1,4 @@
-// client/src/pages/AdminDashboard.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -29,7 +28,9 @@ import {
   MessageSquare,
   FileText,
   Download,
-  DollarSign
+  DollarSign,
+  Check,
+  AlertCircle
 } from "lucide-react";
 
 import UserManagement from "../admin/UserManagement";
@@ -39,7 +40,6 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [notifications, setNotifications] = useState(0);
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,9 +53,95 @@ const AdminDashboard = () => {
     pendingProviders: 0
   });
 
+  // Notification State
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationRef = useRef(null);
+
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  };
+
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Load notifications from localStorage on mount
+  useEffect(() => {
+    const loadNotificationsFromStorage = () => {
+      const storedNotifications = localStorage.getItem("admin_notifications");
+      if (storedNotifications) {
+        try {
+          const parsed = JSON.parse(storedNotifications);
+          setNotifications(parsed);
+          setUnreadCount(parsed.filter(n => !n.read).length);
+        } catch (e) {
+          console.error("Error loading notifications:", e);
+        }
+      }
+    };
+    
+    loadNotificationsFromStorage();
+  }, []);
+
+  // Save notifications to localStorage
+  const saveNotificationsToStorage = (updatedNotifications) => {
+    localStorage.setItem("admin_notifications", JSON.stringify(updatedNotifications));
+  };
+
+  // Generate unique notification ID
+  const generateNotificationId = (providerId, type) => {
+    return `${providerId}_${type}`;
+  };
+
+  // Check if notification already exists
+  const notificationExists = (notificationsList, providerId, type) => {
+    return notificationsList.some(n => n.id === generateNotificationId(providerId, type));
+  };
+
+  // Create notification for verification request
+  const createVerificationNotification = (provider, type, title, message) => {
+    const notificationId = generateNotificationId(provider._id, type);
+    
+    if (notificationExists(notifications, provider._id, type)) {
+      return null;
+    }
+    
+    return {
+      id: notificationId,
+      type: type,
+      title: title,
+      message: message,
+      time: new Date(provider.createdAt || new Date()),
+      read: false,
+      providerId: provider._id,
+      providerName: `${provider.firstName} ${provider.lastName}`,
+      providerCategory: provider.category
+    };
+  };
+
+  // Add notification to list
+  const addNotification = (newNotification) => {
+    if (!newNotification) return;
+    
+    setNotifications(prev => {
+      if (notificationExists(prev, newNotification.providerId, newNotification.type)) {
+        return prev;
+      }
+      const updated = [newNotification, ...prev];
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(prev => prev + 1);
   };
 
   // Check admin authentication
@@ -90,7 +176,6 @@ const AdminDashboard = () => {
       
       if (response.data.success) {
         setStats(response.data.stats);
-        setNotifications(response.data.stats.pendingProviders);
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -105,11 +190,121 @@ const AdminDashboard = () => {
       });
       
       if (response.data.success) {
-        setProviders(response.data.providers);
+        const providersData = response.data.providers;
+        setProviders(providersData);
+        
+        // Load existing notifications from storage
+        const existingNotifications = JSON.parse(localStorage.getItem("admin_notifications") || "[]");
+        const existingIds = new Set(existingNotifications.map(n => n.id));
+        
+        // Create notifications for pending verification requests
+        const newNotifications = [];
+        
+        // Calculate actual pending count (excluding verified and rejected)
+        const actualPendingProviders = providersData.filter(p => !p.isVerified && p.isActive !== false);
+        
+        // Update stats with actual pending count
+        setStats(prev => ({
+          ...prev,
+          pendingProviders: actualPendingProviders.length
+        }));
+        
+        // Create notifications for each pending provider
+        actualPendingProviders.forEach((provider) => {
+          const notificationId = generateNotificationId(provider._id, "verification_request");
+          if (!existingIds.has(notificationId)) {
+            const notification = {
+              id: notificationId,
+              type: "verification_request",
+              title: "New Verification Request",
+              message: `${provider.firstName} ${provider.lastName} (${provider.category}) has submitted a verification request.`,
+              time: new Date(provider.createdAt || new Date()),
+              read: false,
+              providerId: provider._id,
+              providerName: `${provider.firstName} ${provider.lastName}`,
+              providerCategory: provider.category
+            };
+            newNotifications.push(notification);
+          }
+        });
+        
+        // Add all new notifications
+        if (newNotifications.length > 0) {
+          newNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+          setNotifications(prev => {
+            const updated = [...newNotifications, ...prev];
+            saveNotificationsToStorage(updated);
+            return updated;
+          });
+          setUnreadCount(prev => prev + newNotifications.filter(n => !n.read).length);
+        } else {
+          // If no new notifications, load existing ones and update read status for resolved providers
+          const updatedExisting = existingNotifications.map(notif => {
+            // If a provider is no longer pending (verified or rejected), mark notification as read
+            const providerStillPending = actualPendingProviders.some(p => p._id === notif.providerId);
+            if (!providerStillPending && notif.type === "verification_request" && !notif.read) {
+              return { ...notif, read: true };
+            }
+            return notif;
+          });
+          
+          setNotifications(updatedExisting);
+          saveNotificationsToStorage(updatedExisting);
+          setUnreadCount(updatedExisting.filter(n => !n.read).length);
+        }
       }
     } catch (error) {
       console.error("Error fetching providers:", error);
     }
+  };
+
+  // Mark notification as read
+  const markAsRead = (notificationId) => {
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
+        notif.id === notificationId ? { ...notif, read: true } : notif
+      );
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  // Mark all notifications as read
+  const markAllAsRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(notif => ({ ...notif, read: true }));
+      saveNotificationsToStorage(updated);
+      return updated;
+    });
+    setUnreadCount(0);
+    showToast("All notifications marked as read", "success");
+  };
+
+  // Handle notification click
+  const handleNotificationClick = (notification) => {
+    markAsRead(notification.id);
+    setShowNotifications(false);
+    
+    // Find the provider and open details modal
+    const provider = providers.find(p => p._id === notification.providerId);
+    if (provider) {
+      handleViewDetails(provider);
+    }
+  };
+
+  // Format time for notifications
+  const formatNotificationTime = (date) => {
+    const now = new Date();
+    const diffMs = now - new Date(date);
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   const handleVerifyProvider = async (providerId) => {
@@ -175,10 +370,13 @@ const AdminDashboard = () => {
     navigate("/login");
   };
 
+  // Calculate actual pending count for display
+  const actualPendingCount = providers.filter(p => !p.isVerified && p.isActive !== false).length;
+
   const statCards = [
     { label: "Total Users", value: stats.totalUsers, icon: Users, color: "blue" },
     { label: "Service Providers", value: stats.totalProviders, icon: UserCheck, color: "green" },
-    { label: "Pending Verifications", value: stats.pendingProviders, icon: Shield, color: "orange" },
+    { label: "Pending Verifications", value: actualPendingCount, icon: Shield, color: "orange" },
   ];
 
   const getStatusColor = (status) => {
@@ -601,14 +799,89 @@ const AdminDashboard = () => {
                 </p>
               </div>
 
-              <button className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <Bell className="w-6 h-6 text-gray-600" />
-                {notifications > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-400 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md">
-                    {notifications}
-                  </span>
+              {/* Notification Icon with Panel */}
+              <div className="relative" ref={notificationRef}>
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="relative p-2 hover:bg-gray-100 rounded-full transition-all duration-300 hover:scale-105"
+                >
+                  <Bell className="w-6 h-6 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-400 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-md animate-pulse">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification Panel */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-fadeIn">
+                    <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-800">Notifications</h3>
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllAsRead}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium transition"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bell className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-gray-500">No notifications</p>
+                          <p className="text-xs text-gray-400 mt-1">Verification requests will appear here</p>
+                        </div>
+                      ) : (
+                        notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${
+                              !notification.read ? "bg-blue-50/30" : ""
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                <Shield className="w-5 h-5 text-orange-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800">{notification.title}</p>
+                                <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                                <p className="text-xs text-gray-400 mt-2">
+                                  {formatNotificationTime(notification.time)}
+                                </p>
+                              </div>
+                              {!notification.read && (
+                                <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {notifications.length > 0 && (
+                      <div className="p-3 bg-gray-50 border-t border-gray-100 text-center">
+                        <button
+                          onClick={() => setShowNotifications(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
             </div>
           </div>
         </header>
@@ -764,8 +1037,8 @@ const AdminDashboard = () => {
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         @keyframes scaleIn {
           from { transform: scale(0.9); opacity: 0; }
