@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
 const path = require('path');
+const http = require('http');
+const socketIO = require('socket.io');
 require('dotenv').config();
 
 // Import routes
@@ -11,11 +13,23 @@ const userRoutes = require('./routes/userRoutes');
 const providerRoutes = require('./routes/providerRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const { router: chatRoutes, saveMessage } = require('./routes/chatRoutes'); // ← saveMessage is already imported here
 
-// Import Google Auth Service to initialize passport strategy
+// Import Google Auth Service
 require('./services/googleAuthService');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    credentials: true,
+    methods: ["GET", "POST"]
+  }
+});
+
+// Make io accessible to routes
+app.set('io', io);
 
 // CORS middleware
 app.use(
@@ -45,12 +59,116 @@ app.use("/api/users", userRoutes);
 app.use("/api/providers", providerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
     message: "Server is running",
+  });
+});
+
+// Socket.IO connection handling
+// REMOVED the duplicate require line below
+const connectedUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
+  // User authentication and room joining
+  socket.on('register', (data) => {
+    const { userId, userType } = data;
+    connectedUsers.set(userId, { socketId: socket.id, userType });
+    socket.join(`user_${userId}`);
+    console.log(`User ${userId} (${userType}) registered`);
+  });
+
+  // Join a specific chat room
+  socket.on('join_chat', (data) => {
+    const { chatId } = data;
+    socket.join(`chat_${chatId}`);
+    console.log(`Socket ${socket.id} joined chat ${chatId}`);
+  });
+
+  // Send message
+  socket.on('send_message', async (data) => {
+    try {
+      const { chatId, senderId, senderType, receiverId, receiverType, message, messageType, mediaUrl, senderName, providerName, providerAvatar, userName, bookingId } = data;
+      
+      console.log('Sending message:', { senderId, receiverId, message: message ? message.substring(0, 50) : 'media message' });
+      
+      const result = await saveMessage({
+        chatId,
+        senderId,
+        senderType,
+        receiverId,
+        receiverType,
+        message,
+        messageType,
+        mediaUrl,
+        senderName,
+        providerName,
+        providerAvatar,
+        userName,
+        bookingId
+      });
+      
+      if (result.success) {
+        io.to(`chat_${result.chatId}`).emit('new_message', {
+          ...result.message.toObject(),
+          _id: result.message._id
+        });
+        
+        const receiverSocket = connectedUsers.get(receiverId);
+        if (receiverSocket) {
+          io.to(receiverSocket.socketId).emit('message_notification', {
+            chatId: result.chatId,
+            senderName: senderType === 'user' ? senderName : providerName,
+            message: messageType === 'text' ? message : `Sent a ${messageType}`,
+            time: new Date()
+          });
+        }
+      } else {
+        console.error('Save message failed:', result.error);
+        socket.emit('message_error', { error: result.error });
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      socket.emit('message_error', { error: error.message });
+    }
+  });
+
+  // Mark messages as read
+  socket.on('mark_read', async (data) => {
+    try {
+      const { chatId, userId } = data;
+      const Message = require('./models/Message');
+      await Message.updateMany(
+        { chatId, receiverId: userId, read: false },
+        { read: true }
+      );
+      io.to(`chat_${chatId}`).emit('messages_read', { chatId, userId });
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  });
+
+  // Typing indicator
+  socket.on('typing', (data) => {
+    const { chatId, userId, isTyping } = data;
+    socket.to(`chat_${chatId}`).emit('user_typing', { userId, isTyping });
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+    // Remove from connected users
+    for (const [userId, data] of connectedUsers.entries()) {
+      if (data.socketId === socket.id) {
+        connectedUsers.delete(userId);
+        break;
+      }
+    }
   });
 });
 
@@ -68,12 +186,18 @@ mongoose
       fs.mkdirSync(uploadDir);
       console.log("✅ Uploads directory created");
     }
+    
+    const chatUploadDir = path.join(__dirname, "uploads/chat");
+    if (!fs.existsSync(chatUploadDir)) {
+      fs.mkdirSync(chatUploadDir, { recursive: true });
+      console.log("✅ Chat uploads directory created");
+    }
 
     const { createInitialAdmin } = require('./controllers/adminController');
     createInitialAdmin();
 
     const PORT = process.env.PORT || 5050;
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
   })
@@ -89,14 +213,5 @@ app.use((err, req, res, next) => {
     success: false,
     message: "Something went wrong!",
     error: process.env.NODE_ENV === "development" ? err.message : {},
-  });
-});
-
-// Add this temporarily to debug
-app.get('/debug-env', (req, res) => {
-  res.json({
-    googleClientId: process.env.GOOGLE_CLIENT_ID ? 'Set' : 'Not Set',
-    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not Set',
-    frontendUrl: process.env.FRONTEND_URL
   });
 });

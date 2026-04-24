@@ -32,6 +32,7 @@ import {
   Play,
 } from "lucide-react";
 import ProfileSettings from "./ProfileSettings";
+import UserChat from "./UserChat";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -46,18 +47,19 @@ const UserDashboard = () => {
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const [selectedBookingForReview, setSelectedBookingForReview] =
+    useState(null);
   const [ratingValue, setRatingValue] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
-  
+
   // Notification State
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationRef = useRef(null);
-  
+
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState({
     upcoming: false,
@@ -75,7 +77,10 @@ const UserDashboard = () => {
   // Close notification panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
         setShowNotifications(false);
       }
     };
@@ -91,19 +96,22 @@ const UserDashboard = () => {
         try {
           const parsed = JSON.parse(storedNotifications);
           setNotifications(parsed);
-          setUnreadCount(parsed.filter(n => !n.read).length);
+          setUnreadCount(parsed.filter((n) => !n.read).length);
         } catch (e) {
           console.error("Error loading notifications:", e);
         }
       }
     };
-    
+
     loadNotificationsFromStorage();
   }, []);
 
   // Save notifications to localStorage
   const saveNotificationsToStorage = (updatedNotifications) => {
-    localStorage.setItem("user_notifications", JSON.stringify(updatedNotifications));
+    localStorage.setItem(
+      "user_notifications",
+      JSON.stringify(updatedNotifications),
+    );
   };
 
   // Generate unique notification ID
@@ -113,18 +121,20 @@ const UserDashboard = () => {
 
   // Check if notification already exists
   const notificationExists = (notificationsList, bookingId, type) => {
-    return notificationsList.some(n => n.id === generateNotificationId(bookingId, type));
+    return notificationsList.some(
+      (n) => n.id === generateNotificationId(bookingId, type),
+    );
   };
 
   // Create notification for booking
   const createNotification = (booking, type, title, message, time) => {
     const notificationId = generateNotificationId(booking._id, type);
-    
+
     // Don't add if already exists
     if (notificationExists(notifications, booking._id, type)) {
       return null;
     }
-    
+
     return {
       id: notificationId,
       type: type,
@@ -141,17 +151,23 @@ const UserDashboard = () => {
   // Add notification to list
   const addNotification = (newNotification) => {
     if (!newNotification) return;
-    
-    setNotifications(prev => {
+
+    setNotifications((prev) => {
       // Check again in case of race condition
-      if (notificationExists(prev, newNotification.bookingId, newNotification.type)) {
+      if (
+        notificationExists(
+          prev,
+          newNotification.bookingId,
+          newNotification.type,
+        )
+      ) {
         return prev;
       }
       const updated = [newNotification, ...prev];
       saveNotificationsToStorage(updated);
       return updated;
     });
-    setUnreadCount(prev => prev + 1);
+    setUnreadCount((prev) => prev + 1);
   };
 
   // Load user data from localStorage
@@ -168,7 +184,7 @@ const UserDashboard = () => {
 
       try {
         const userData = JSON.parse(storedUser);
-        
+
         let avatarUrl = userData.avatar;
         if (avatarUrl && avatarUrl.startsWith("/uploads/")) {
           avatarUrl = `http://localhost:5050${avatarUrl}`;
@@ -180,7 +196,7 @@ const UserDashboard = () => {
           name: userData.fullName || userData.name || "User",
           email: userData.email || "",
           avatar: avatarUrl,
-          _id: userData._id
+          _id: userData._id,
         });
       } catch (error) {
         console.error("Error parsing user data:", error);
@@ -201,24 +217,29 @@ const UserDashboard = () => {
           "http://localhost:5050/api/bookings/user",
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
 
         if (response.data.success) {
           const bookingsData = response.data.bookings;
           setBookings(bookingsData);
-          
+
           // Load existing notifications from storage
-          const existingNotifications = JSON.parse(localStorage.getItem("user_notifications") || "[]");
-          const existingIds = new Set(existingNotifications.map(n => n.id));
-          
+          const existingNotifications = JSON.parse(
+            localStorage.getItem("user_notifications") || "[]",
+          );
+          const existingIds = new Set(existingNotifications.map((n) => n.id));
+
           // Create notifications from bookings (only for status changes)
           const newNotifications = [];
-          
+
           bookingsData.forEach((booking) => {
             // Notification for booking acceptance (confirmed)
             if (booking.status === "confirmed") {
-              const notificationId = generateNotificationId(booking._id, "booking_confirmed");
+              const notificationId = generateNotificationId(
+                booking._id,
+                "booking_confirmed",
+              );
               if (!existingIds.has(notificationId)) {
                 newNotifications.push({
                   id: notificationId,
@@ -232,10 +253,13 @@ const UserDashboard = () => {
                 });
               }
             }
-            
+
             // Notification for service started
             if (booking.status === "in_progress" && booking.startTime) {
-              const notificationId = generateNotificationId(booking._id, "service_started");
+              const notificationId = generateNotificationId(
+                booking._id,
+                "service_started",
+              );
               if (!existingIds.has(notificationId)) {
                 newNotifications.push({
                   id: notificationId,
@@ -249,10 +273,13 @@ const UserDashboard = () => {
                 });
               }
             }
-            
+
             // Notification for service completed
             if (booking.status === "completed" && booking.endTime) {
-              const notificationId = generateNotificationId(booking._id, "service_completed");
+              const notificationId = generateNotificationId(
+                booking._id,
+                "service_completed",
+              );
               if (!existingIds.has(notificationId)) {
                 newNotifications.push({
                   id: notificationId,
@@ -266,10 +293,13 @@ const UserDashboard = () => {
                 });
               }
             }
-            
+
             // Notification for booking rejection
             if (booking.status === "rejected") {
-              const notificationId = generateNotificationId(booking._id, "booking_rejected");
+              const notificationId = generateNotificationId(
+                booking._id,
+                "booking_rejected",
+              );
               if (!existingIds.has(notificationId)) {
                 newNotifications.push({
                   id: notificationId,
@@ -284,20 +314,24 @@ const UserDashboard = () => {
               }
             }
           });
-          
+
           // Add all new notifications
           if (newNotifications.length > 0) {
-            newNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
-            setNotifications(prev => {
+            newNotifications.sort(
+              (a, b) => new Date(b.time) - new Date(a.time),
+            );
+            setNotifications((prev) => {
               const updated = [...newNotifications, ...prev];
               saveNotificationsToStorage(updated);
               return updated;
             });
-            setUnreadCount(prev => prev + newNotifications.filter(n => !n.read).length);
+            setUnreadCount(
+              (prev) => prev + newNotifications.filter((n) => !n.read).length,
+            );
           } else {
             // If no new notifications, load existing ones
             setNotifications(existingNotifications);
-            setUnreadCount(existingNotifications.filter(n => !n.read).length);
+            setUnreadCount(existingNotifications.filter((n) => !n.read).length);
           }
         }
       } catch (error) {
@@ -313,20 +347,20 @@ const UserDashboard = () => {
 
   // Mark notification as read
   const markAsRead = (notificationId) => {
-    setNotifications(prev => {
-      const updated = prev.map(notif =>
-        notif.id === notificationId ? { ...notif, read: true } : notif
+    setNotifications((prev) => {
+      const updated = prev.map((notif) =>
+        notif.id === notificationId ? { ...notif, read: true } : notif,
       );
       saveNotificationsToStorage(updated);
       return updated;
     });
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   };
 
   // Mark all notifications as read
   const markAllAsRead = () => {
-    setNotifications(prev => {
-      const updated = prev.map(notif => ({ ...notif, read: true }));
+    setNotifications((prev) => {
+      const updated = prev.map((notif) => ({ ...notif, read: true }));
       saveNotificationsToStorage(updated);
       return updated;
     });
@@ -338,10 +372,10 @@ const UserDashboard = () => {
   const handleNotificationClick = (notification) => {
     markAsRead(notification.id);
     setShowNotifications(false);
-    
+
     // Navigate to relevant section or show provider details
     if (notification.bookingId) {
-      const booking = bookings.find(b => b._id === notification.bookingId);
+      const booking = bookings.find((b) => b._id === notification.bookingId);
       if (booking && notification.type === "service_completed") {
         handleReviewClick(booking);
       } else if (booking) {
@@ -357,22 +391,31 @@ const UserDashboard = () => {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
   // Get notification icon and color based on type
   const getNotificationStyle = (type) => {
-    switch(type) {
+    switch (type) {
       case "booking_confirmed":
-        return { icon: CheckCircle, color: "text-green-600", bgColor: "bg-green-100" };
+        return {
+          icon: CheckCircle,
+          color: "text-green-600",
+          bgColor: "bg-green-100",
+        };
       case "service_started":
         return { icon: Play, color: "text-blue-600", bgColor: "bg-blue-100" };
       case "service_completed":
-        return { icon: CheckCircle, color: "text-purple-600", bgColor: "bg-purple-100" };
+        return {
+          icon: CheckCircle,
+          color: "text-purple-600",
+          bgColor: "bg-purple-100",
+        };
       case "booking_rejected":
         return { icon: XCircle, color: "text-red-600", bgColor: "bg-red-100" };
       default:
@@ -398,27 +441,31 @@ const UserDashboard = () => {
 
   // Cancel booking (only if pending)
   const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+    if (!window.confirm("Are you sure you want to cancel this booking?"))
+      return;
 
     try {
       const token = localStorage.getItem("token");
       const response = await axios.put(
         "http://localhost:5050/api/bookings/cancel",
         { bookingId },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (response.data.success) {
         const updatedBookings = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         setBookings(updatedBookings.data.bookings);
         showToast("Booking cancelled successfully", "success");
       }
     } catch (error) {
       console.error("Error cancelling booking:", error);
-      showToast(error.response?.data?.message || "Failed to cancel booking", "error");
+      showToast(
+        error.response?.data?.message || "Failed to cancel booking",
+        "error",
+      );
     }
   };
 
@@ -453,21 +500,27 @@ const UserDashboard = () => {
           rating: ratingValue,
           review: reviewText,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (response.data.success) {
         const updatedBookings = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         setBookings(updatedBookings.data.bookings);
         setShowReviewModal(false);
-        showToast("Review submitted successfully! Thank you for your feedback.", "success");
+        showToast(
+          "Review submitted successfully! Thank you for your feedback.",
+          "success",
+        );
       }
     } catch (error) {
       console.error("Error submitting review:", error);
-      showToast(error.response?.data?.message || "Failed to submit review", "error");
+      showToast(
+        error.response?.data?.message || "Failed to submit review",
+        "error",
+      );
     }
   };
 
@@ -510,9 +563,9 @@ const UserDashboard = () => {
 
   // Toggle section expansion
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
@@ -527,22 +580,42 @@ const UserDashboard = () => {
 
   // Filter bookings by status
   const upcomingBookingsList = bookings.filter(
-    (b) => b.status === "pending" || b.status === "confirmed"
+    (b) => b.status === "pending" || b.status === "confirmed",
   );
-  
+
   const historyBookingsList = bookings.filter(
-    (b) => b.status === "completed" || b.status === "rejected" || b.status === "cancelled"
+    (b) =>
+      b.status === "completed" ||
+      b.status === "rejected" ||
+      b.status === "cancelled",
   );
 
   // Statistics
   const totalBookings = bookings.length;
   const upcomingCount = upcomingBookingsList.length;
-  const completedCount = bookings.filter(b => b.status === "completed").length;
+  const completedCount = bookings.filter(
+    (b) => b.status === "completed",
+  ).length;
 
   const stats = [
-    { label: "Total Bookings", value: totalBookings, icon: CalendarPlus, color: "blue" },
-    { label: "Upcoming Bookings", value: upcomingCount, icon: Clock, color: "yellow" },
-    { label: "Completed Bookings", value: completedCount, icon: CheckCircle, color: "green" },
+    {
+      label: "Total Bookings",
+      value: totalBookings,
+      icon: CalendarPlus,
+      color: "blue",
+    },
+    {
+      label: "Upcoming Bookings",
+      value: upcomingCount,
+      icon: Clock,
+      color: "yellow",
+    },
+    {
+      label: "Completed Bookings",
+      value: completedCount,
+      icon: CheckCircle,
+      color: "green",
+    },
   ];
 
   const getStatusColor = (status) => {
@@ -571,6 +644,7 @@ const UserDashboard = () => {
 
   const navigation = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "messages", label: "Messages", icon: MessageSquare },
     { id: "profile", label: "Profile", icon: User },
     { id: "support", label: "Help & Support", icon: HelpCircle },
   ];
@@ -585,7 +659,10 @@ const UserDashboard = () => {
   // Render Upcoming Bookings Section
   const renderUpcomingSection = () => {
     const isExpanded = expandedSections.upcoming;
-    const visibleBookings = getVisibleBookings(upcomingBookingsList, isExpanded);
+    const visibleBookings = getVisibleBookings(
+      upcomingBookingsList,
+      isExpanded,
+    );
     const showViewAll = hasMoreThanFour(upcomingBookingsList);
     const isEmpty = upcomingBookingsList.length === 0;
 
@@ -619,7 +696,9 @@ const UserDashboard = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Briefcase className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-md font-medium text-gray-700 mb-1">No upcoming bookings</h3>
+            <h3 className="text-md font-medium text-gray-700 mb-1">
+              No upcoming bookings
+            </h3>
             <p className="text-sm text-gray-500">
               When you book a service, it will appear here.
             </p>
@@ -638,7 +717,9 @@ const UserDashboard = () => {
                 booking={booking}
                 type="upcoming"
                 onCancel={() => handleCancelBooking(booking._id)}
-                onProviderClick={() => handleProviderClick(booking.provider, booking)}
+                onProviderClick={() =>
+                  handleProviderClick(booking.provider, booking)
+                }
                 getProviderImage={getProviderImage}
                 formatDate={formatDate}
                 formatTime={formatTime}
@@ -691,7 +772,9 @@ const UserDashboard = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Briefcase className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-md font-medium text-gray-700 mb-1">No booking history</h3>
+            <h3 className="text-md font-medium text-gray-700 mb-1">
+              No booking history
+            </h3>
             <p className="text-sm text-gray-500">
               Completed, rejected, or cancelled bookings will appear here.
             </p>
@@ -704,7 +787,9 @@ const UserDashboard = () => {
                 booking={booking}
                 type="history"
                 onReview={() => handleReviewClick(booking)}
-                onProviderClick={() => handleProviderClick(booking.provider, booking)}
+                onProviderClick={() =>
+                  handleProviderClick(booking.provider, booking)
+                }
                 getProviderImage={getProviderImage}
                 formatDate={formatDate}
                 formatTime={formatTime}
@@ -720,6 +805,56 @@ const UserDashboard = () => {
     );
   };
 
+  // Chat State
+  const [showChat, setShowChat] = useState(false);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [selectedChatProvider, setSelectedChatProvider] = useState(null);
+  const [userChats, setUserChats] = useState([]);
+  const [loadingChats, setLoadingChats] = useState(false);
+
+  // Fetch user chats
+  const fetchUserChats = async () => {
+    try {
+      setLoadingChats(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(
+        "http://localhost:5050/api/chat/user/chats",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (response.data.success) {
+        setUserChats(response.data.chats);
+      }
+    } catch (error) {
+      console.error("Error fetching chats:", error);
+    } finally {
+      setLoadingChats(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "messages") {
+      fetchUserChats();
+    }
+  }, [activeTab]);
+
+  // Open chat with provider
+  const openChat = (chat) => {
+    const booking = bookings.find((b) => b._id === chat.bookingId);
+    if (booking) {
+      setSelectedChatBooking(booking);
+      setSelectedChatProvider({
+        _id: chat.participants.provider.providerId,
+        name: chat.participants.provider.name,
+        avatar: chat.participants.provider.avatar,
+        category: booking.provider?.category || "Service Provider",
+      });
+      setShowChat(true);
+    }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
@@ -728,15 +863,21 @@ const UserDashboard = () => {
             {/* Toast Notification */}
             {toast.show && (
               <div className="fixed top-5 right-5 z-50 animate-slide-in">
-                <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-[300px] ${
-                  toast.type === "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
-                }`}>
+                <div
+                  className={`rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-[300px] ${
+                    toast.type === "success"
+                      ? "bg-green-50 border border-green-200"
+                      : "bg-red-50 border border-red-200"
+                  }`}
+                >
                   {toast.type === "success" ? (
                     <CheckCircle className="w-5 h-5 text-green-600" />
                   ) : (
                     <AlertCircle className="w-5 h-5 text-red-600" />
                   )}
-                  <p className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}>
+                  <p
+                    className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}
+                  >
                     {toast.message}
                   </p>
                 </div>
@@ -753,12 +894,21 @@ const UserDashboard = () => {
                   green: "from-green-500 to-green-400",
                 };
                 return (
-                  <div key={stat.label} className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100">
-                    <div className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4`}>
+                  <div
+                    key={stat.label}
+                    className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100"
+                  >
+                    <div
+                      className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4`}
+                    >
                       <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
-                    <p className="text-xs md:text-sm text-gray-500">{stat.label}</p>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">{stat.value}</h2>
+                    <p className="text-xs md:text-sm text-gray-500">
+                      {stat.label}
+                    </p>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">
+                      {stat.value}
+                    </h2>
                   </div>
                 );
               })}
@@ -772,24 +922,133 @@ const UserDashboard = () => {
           </>
         );
 
+      case "messages":
+        return (
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-[calc(100vh-200px)]">
+            {showChat ? (
+              <UserChat
+                booking={
+                  selectedChat?.bookingId ? { _id: selectedChat.bookingId } : {}
+                }
+                provider={{
+                  _id: selectedChat?.participants?.provider?.providerId,
+                  name: selectedChat?.participants?.provider?.name,
+                  avatar: selectedChat?.participants?.provider?.avatar,
+                  category:
+                    selectedChatProvider?.category || "Service Provider",
+                }}
+                onClose={() => setShowChat(false)}
+              />
+            ) : (
+              <div className="p-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  Messages
+                </h2>
+                {loadingChats ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : userChats.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">No messages yet</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      When you message providers, conversations will appear
+                      here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {userChats.map((chat) => {
+                      // Find the booking associated with this chat
+                      const booking = bookings.find(
+                        (b) => b._id === chat.bookingId,
+                      );
+                      return (
+                        <div
+                          key={chat._id}
+                          onClick={() => {
+                            setSelectedChat(chat);
+                            setSelectedChatProvider({
+                              _id: chat.participants.provider.providerId,
+                              name: chat.participants.provider.name,
+                              avatar: chat.participants.provider.avatar,
+                              category:
+                                booking?.provider?.category ||
+                                "Service Provider",
+                            });
+                            setShowChat(true);
+                          }}
+                          className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition cursor-pointer border border-gray-100"
+                        >
+                          <img
+                            src={
+                              chat.participants.provider.avatar ||
+                              `https://ui-avatars.com/api/?name=${chat.participants.provider.name}&background=3b82f6&color=fff&size=80`
+                            }
+                            className="w-12 h-12 rounded-full object-cover"
+                            alt={chat.participants.provider.name}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-semibold text-gray-800 truncate">
+                                {chat.participants.provider.name}
+                              </h3>
+                              <span className="text-xs text-gray-400">
+                                {new Date(
+                                  chat.lastMessageTime,
+                                ).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500 truncate">
+                              {chat.lastMessage}
+                            </p>
+                          </div>
+                          {chat.unreadCount > 0 && (
+                            <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                              {chat.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+
       case "profile":
         return <ProfileSettings onProfileUpdate={handleProfileUpdate} />;
 
       case "support":
         return (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 md:p-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">Help & Support</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">
+              Help & Support
+            </h2>
             <div className="space-y-6">
               <div className="border-b pb-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Frequently Asked Questions</h3>
+                <h3 className="font-semibold text-gray-800 mb-4">
+                  Frequently Asked Questions
+                </h3>
                 <ul className="space-y-3">
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• How do I book a service?</li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• What is your cancellation policy?</li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• How are service providers verified?</li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • How do I book a service?
+                  </li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • What is your cancellation policy?
+                  </li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • How are service providers verified?
+                  </li>
                 </ul>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800 mb-4">Contact Support</h3>
+                <h3 className="font-semibold text-gray-800 mb-4">
+                  Contact Support
+                </h3>
                 <button className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition">
                   Contact Support Team
                 </button>
@@ -849,7 +1108,11 @@ const UserDashboard = () => {
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 bg-white rounded-xl shadow-lg border border-gray-200"
         >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </button>
       </div>
 
@@ -859,14 +1122,22 @@ const UserDashboard = () => {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
             <Home className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h2>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+            ServEase
+          </h2>
         </div>
 
         <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
-          <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" alt={user.name} />
+          <img
+            src={user.avatar}
+            className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
+            alt={user.name}
+          />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-800 truncate">{user.name}</p>
-            <p className="text-xs text-blue-600 font-medium truncate">{user.email}</p>
+            <p className="text-xs text-blue-600 font-medium truncate">
+              {user.email}
+            </p>
           </div>
         </div>
 
@@ -883,15 +1154,22 @@ const UserDashboard = () => {
                     : "hover:bg-gray-100 text-gray-700"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-gray-600"}`} />
+                <Icon
+                  className={`w-5 h-5 ${activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-gray-600"}`}
+                />
                 <span className="font-medium">{item.label}</span>
-                {activeTab === item.id && <ChevronRight className="w-4 h-4 ml-auto" />}
+                {activeTab === item.id && (
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                )}
               </button>
             );
           })}
         </nav>
 
-        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl transition">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl transition"
+        >
           <LogOut className="w-5 h-5" />
           <span className="font-medium">Log Out</span>
         </button>
@@ -900,21 +1178,34 @@ const UserDashboard = () => {
       {/* Mobile Sidebar */}
       {mobileMenuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
           <aside className="fixed top-0 left-0 w-72 bg-white h-full z-40 shadow-xl md:hidden overflow-y-auto">
             <div className="flex flex-col h-full p-6">
               <div className="flex items-center gap-2 mb-8">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
                   <Home className="w-5 h-5 text-white" />
                 </div>
-                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h2>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                  ServEase
+                </h2>
               </div>
 
               <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
-                <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" alt={user.name} />
+                <img
+                  src={user.avatar}
+                  className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
+                  alt={user.name}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{user.name}</p>
-                  <p className="text-xs text-blue-600 font-medium truncate">{user.email}</p>
+                  <p className="font-semibold text-gray-800 truncate">
+                    {user.name}
+                  </p>
+                  <p className="text-xs text-blue-600 font-medium truncate">
+                    {user.email}
+                  </p>
                 </div>
               </div>
 
@@ -941,7 +1232,10 @@ const UserDashboard = () => {
                 })}
               </nav>
 
-              <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl"
+              >
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">Log Out</span>
               </button>
@@ -957,19 +1251,26 @@ const UserDashboard = () => {
           <div className="px-4 md:px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                {activeTab === "profile" ? "Profile Settings" : `Welcome back, ${user.name.split(" ")[0]}! 👋`}
+                {activeTab === "profile"
+                  ? "Profile Settings"
+                  : `Welcome back, ${user.name.split(" ")[0]}! 👋`}
               </h1>
               <p className="text-xs md:text-sm text-gray-500 mt-1">
-                {activeTab === "profile" ? "Manage your personal details" : "Here's what's happening with your bookings"}
+                {activeTab === "profile"
+                  ? "Manage your personal details"
+                  : "Here's what's happening with your bookings"}
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <button onClick={handleNewBookingClick} className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition shadow-md text-sm md:text-base">
+              <button
+                onClick={handleNewBookingClick}
+                className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition shadow-md text-sm md:text-base"
+              >
                 <PlusCircle className="w-4 h-4 md:w-5 md:h-5" />
                 <span className="hidden sm:inline">New Booking</span>
               </button>
-              
+
               {/* Notification Icon with Panel */}
               <div className="relative" ref={notificationRef}>
                 <button
@@ -990,7 +1291,9 @@ const UserDashboard = () => {
                     <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
                       <div className="flex items-center gap-2">
                         <Bell className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-semibold text-gray-800">Notifications</h3>
+                        <h3 className="font-semibold text-gray-800">
+                          Notifications
+                        </h3>
                       </div>
                       {unreadCount > 0 && (
                         <button
@@ -1009,26 +1312,40 @@ const UserDashboard = () => {
                             <Bell className="w-8 h-8 text-gray-400" />
                           </div>
                           <p className="text-gray-500">No notifications</p>
-                          <p className="text-xs text-gray-400 mt-1">Updates about your bookings will appear here</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Updates about your bookings will appear here
+                          </p>
                         </div>
                       ) : (
                         notifications.map((notification) => {
-                          const { icon: Icon, color, bgColor } = getNotificationStyle(notification.type);
+                          const {
+                            icon: Icon,
+                            color,
+                            bgColor,
+                          } = getNotificationStyle(notification.type);
                           return (
                             <div
                               key={notification.id}
-                              onClick={() => handleNotificationClick(notification)}
+                              onClick={() =>
+                                handleNotificationClick(notification)
+                              }
                               className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${
                                 !notification.read ? "bg-blue-50/30" : ""
                               }`}
                             >
                               <div className="flex items-start gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
+                                <div
+                                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}
+                                >
                                   <Icon className={`w-5 h-5 ${color}`} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-800">{notification.title}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                                  <p className="text-sm font-medium text-gray-800">
+                                    {notification.title}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {notification.message}
+                                  </p>
                                   <p className="text-xs text-gray-400 mt-2">
                                     {formatNotificationTime(notification.time)}
                                   </p>
@@ -1060,9 +1377,7 @@ const UserDashboard = () => {
           </div>
         </header>
 
-        <div className="p-4 md:p-8">
-          {renderContent()}
-        </div>
+        <div className="p-4 md:p-8">{renderContent()}</div>
       </main>
 
       <style>{`
@@ -1104,7 +1419,9 @@ const BookingCard = ({
   const statusColor = getStatusColor(booking.status);
   const statusLabel = getStatusLabel(booking.status);
   const canCancel = booking.status === "pending";
-  const canReview = booking.status === "completed" && (!booking.rating || booking.rating === null);
+  const canReview =
+    booking.status === "completed" &&
+    (!booking.rating || booking.rating === null);
   const hasReviewed = booking.rating && booking.rating !== null;
 
   return (
@@ -1112,16 +1429,27 @@ const BookingCard = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={onProviderClick} className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer">
-              <img src={getProviderImage(booking.provider)} className="w-full h-full object-cover" alt={booking.provider.name} />
+            <button
+              onClick={onProviderClick}
+              className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer"
+            >
+              <img
+                src={getProviderImage(booking.provider)}
+                className="w-full h-full object-cover"
+                alt={booking.provider.name}
+              />
             </button>
             <div>
-              <button onClick={onProviderClick} className="font-semibold text-gray-800 hover:text-blue-600 transition text-left text-sm md:text-base">
+              <button
+                onClick={onProviderClick}
+                className="font-semibold text-gray-800 hover:text-blue-600 transition text-left text-sm md:text-base"
+              >
                 {booking.provider.name}
               </button>
               <p className="text-xs text-blue-600">{booking.service}</p>
             </div>
           </div>
+
           <div className="space-y-1 ml-12 md:ml-15">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
               <Calendar className="w-3 h-3" />
@@ -1130,35 +1458,51 @@ const BookingCard = ({
               <span>{booking.time}</span>
             </div>
             {booking.startTime && (
-              <p className="text-xs text-gray-500">Started: {formatTime(booking.startTime)}</p>
+              <p className="text-xs text-gray-500">
+                Started: {formatTime(booking.startTime)}
+              </p>
             )}
             {booking.endTime && (
-              <p className="text-xs text-gray-500">Completed: {formatTime(booking.endTime)}</p>
+              <p className="text-xs text-gray-500">
+                Completed: {formatTime(booking.endTime)}
+              </p>
             )}
             {booking.duration > 0 && (
-              <p className="text-xs text-gray-500">Duration: {booking.duration.toFixed(2)} hours</p>
+              <p className="text-xs text-gray-500">
+                Duration: {booking.duration.toFixed(2)} hours
+              </p>
             )}
           </div>
         </div>
 
         <div className="text-right min-w-[140px] md:min-w-[160px]">
-          <span className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 text-xs font-medium rounded-full ${statusColor}`}>
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 text-xs font-medium rounded-full ${statusColor}`}
+          >
             <CheckCircle className="w-3 h-3" />
             {statusLabel}
           </span>
           <p className="text-base md:text-lg font-bold text-gray-800 mt-2">
-            {booking.calculatedAmount > 0 ? formatPrice(booking.calculatedAmount) : formatPrice(booking.totalAmount)}
+            {booking.calculatedAmount > 0
+              ? formatPrice(booking.calculatedAmount)
+              : formatPrice(booking.totalAmount)}
           </p>
-          
+
           {type === "upcoming" && canCancel && (
-            <button onClick={onCancel} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto">
+            <button
+              onClick={onCancel}
+              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto"
+            >
               <XCircle className="w-3 h-3 md:w-4 md:h-4" />
               Cancel
             </button>
           )}
 
           {type === "history" && canReview && (
-            <button onClick={onReview} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-50 text-green-600 rounded-lg text-xs md:text-sm font-medium hover:bg-green-100 transition flex items-center gap-1 mx-auto">
+            <button
+              onClick={onReview}
+              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-green-50 text-green-600 rounded-lg text-xs md:text-sm font-medium hover:bg-green-100 transition flex items-center gap-1 mx-auto"
+            >
               <ThumbsUp className="w-3 h-3 md:w-4 md:h-4" />
               Review
             </button>
@@ -1169,7 +1513,9 @@ const BookingCard = ({
               {renderStars(booking.rating)}
               {booking.review && (
                 <div className="text-left mt-1 p-2 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-600 italic">"{booking.review}"</p>
+                  <p className="text-xs text-gray-600 italic">
+                    "{booking.review}"
+                  </p>
                 </div>
               )}
             </div>
@@ -1181,7 +1527,18 @@ const BookingCard = ({
 };
 
 // Provider Modal Component
-const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDate, formatTime, formatPrice, renderStars, getStatusLabel, getStatusColor }) => {
+const ProviderModal = ({
+  provider,
+  booking,
+  onClose,
+  getProviderImage,
+  formatDate,
+  formatTime,
+  formatPrice,
+  renderStars,
+  getStatusLabel,
+  getStatusColor,
+}) => {
   const statusColor = getStatusColor(booking.status);
   const statusLabel = getStatusLabel(booking.status);
 
@@ -1191,20 +1548,31 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
           <div className="flex justify-between items-start">
             <h3 className="text-xl font-bold">Provider Details</h3>
-            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           <div className="flex items-center gap-4 mb-6">
-            <img src={getProviderImage(provider)} className="w-20 h-20 rounded-full border-4 border-blue-100 object-cover" alt={provider.name} />
+            <img
+              src={getProviderImage(provider)}
+              className="w-20 h-20 rounded-full border-4 border-blue-100 object-cover"
+              alt={provider.name}
+            />
             <div>
-              <h4 className="text-lg font-semibold text-gray-800">{provider.name}</h4>
+              <h4 className="text-lg font-semibold text-gray-800">
+                {provider.name}
+              </h4>
               <p className="text-sm text-blue-600">{provider.category}</p>
               <div className="flex items-center gap-1 mt-1">
                 {renderStars(provider.rating || 0)}
-                <span className="text-xs text-gray-500 ml-1">({provider.totalReviews || 0} reviews)</span>
+                <span className="text-xs text-gray-500 ml-1">
+                  ({provider.totalReviews || 0} reviews)
+                </span>
               </div>
             </div>
           </div>
@@ -1215,24 +1583,47 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
               Booking Details
             </h5>
             <div className="space-y-2">
-              <p className="text-sm"><span className="font-medium text-gray-700">Service:</span> {booking.service}</p>
-              <p className="text-sm"><span className="font-medium text-gray-700">Date & Time:</span> {formatDate(booking.date)} at {booking.time}</p>
-              <p className="text-sm"><span className="font-medium text-gray-700">Status:</span>
-                <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusColor}`}>
+              <p className="text-sm">
+                <span className="font-medium text-gray-700">Service:</span>{" "}
+                {booking.service}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium text-gray-700">Date & Time:</span>{" "}
+                {formatDate(booking.date)} at {booking.time}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium text-gray-700">Status:</span>
+                <span
+                  className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusColor}`}
+                >
                   {statusLabel}
                 </span>
               </p>
               {booking.startTime && (
-                <p className="text-sm"><span className="font-medium text-gray-700">Started:</span> {formatTime(booking.startTime)}</p>
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Started:</span>{" "}
+                  {formatTime(booking.startTime)}
+                </p>
               )}
               {booking.endTime && (
-                <p className="text-sm"><span className="font-medium text-gray-700">Completed:</span> {formatTime(booking.endTime)}</p>
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Completed:</span>{" "}
+                  {formatTime(booking.endTime)}
+                </p>
               )}
               {booking.duration > 0 && (
-                <p className="text-sm"><span className="font-medium text-gray-700">Duration:</span> {booking.duration.toFixed(2)} hours</p>
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Duration:</span>{" "}
+                  {booking.duration.toFixed(2)} hours
+                </p>
               )}
               {booking.calculatedAmount > 0 && (
-                <p className="text-sm"><span className="font-medium text-gray-700">Total Amount:</span> {formatPrice(booking.calculatedAmount)}</p>
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">
+                    Total Amount:
+                  </span>{" "}
+                  {formatPrice(booking.calculatedAmount)}
+                </p>
               )}
             </div>
           </div>
@@ -1242,12 +1633,21 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
               <User className="w-4 h-4 text-blue-600" />
               About Provider
             </h5>
-            <p className="text-sm text-gray-600">{provider.description || "Professional service provider dedicated to quality work and customer satisfaction."}</p>
+            <p className="text-sm text-gray-600">
+              {provider.description ||
+                "Professional service provider dedicated to quality work and customer satisfaction."}
+            </p>
             {provider.experience && (
-              <p className="text-sm text-gray-600 mt-2"><span className="font-medium">Experience:</span> {provider.experience}</p>
+              <p className="text-sm text-gray-600 mt-2">
+                <span className="font-medium">Experience:</span>{" "}
+                {provider.experience}
+              </p>
             )}
             {provider.hourlyRate && (
-              <p className="text-sm text-gray-600 mt-1"><span className="font-medium">Hourly Rate:</span> Rs. {provider.hourlyRate}/hr</p>
+              <p className="text-sm text-gray-600 mt-1">
+                <span className="font-medium">Hourly Rate:</span> Rs.{" "}
+                {provider.hourlyRate}/hr
+              </p>
             )}
           </div>
         </div>
@@ -1257,7 +1657,16 @@ const ProviderModal = ({ provider, booking, onClose, getProviderImage, formatDat
 };
 
 // Review Modal Component
-const ReviewModal = ({ booking, ratingValue, setRatingValue, reviewText, setReviewText, onSubmit, onClose, renderStars }) => {
+const ReviewModal = ({
+  booking,
+  ratingValue,
+  setRatingValue,
+  reviewText,
+  setReviewText,
+  onSubmit,
+  onClose,
+  renderStars,
+}) => {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
@@ -1267,7 +1676,10 @@ const ReviewModal = ({ booking, ratingValue, setRatingValue, reviewText, setRevi
               <h3 className="text-xl font-bold">Rate Your Experience</h3>
               <p className="text-sm text-blue-100 mt-1">How was the service?</p>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1278,13 +1690,17 @@ const ReviewModal = ({ booking, ratingValue, setRatingValue, reviewText, setRevi
               <Award className="w-8 h-8 text-blue-600" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-800">{booking.provider.name}</h4>
+              <h4 className="font-semibold text-gray-800">
+                {booking.provider.name}
+              </h4>
               <p className="text-sm text-gray-500">{booking.service}</p>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Rating
+            </label>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -1294,7 +1710,9 @@ const ReviewModal = ({ booking, ratingValue, setRatingValue, reviewText, setRevi
                 >
                   <Star
                     className={`w-8 h-8 ${
-                      star <= ratingValue ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                      star <= ratingValue
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-gray-300"
                     }`}
                   />
                 </button>
