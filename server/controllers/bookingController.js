@@ -159,15 +159,34 @@ const createBooking = async (req, res) => {
 };
 
 // Get bookings for a user
+// In getUserBookings, add payment status to response
 const getUserBookings = async (req, res) => {
   try {
     const userId = req.userId;
-    const bookings = await Booking.find({ "user.userId": userId }).sort({
-      createdAt: -1,
-    });
+    const bookings = await Booking.find({ "user.userId": userId })
+      .sort({ createdAt: -1 });
+    
+    // Check payment status for each booking
+    const Payment = require('../models/Payment');
+    const bookingsWithPaymentStatus = await Promise.all(bookings.map(async (booking) => {
+      const payment = await Payment.findOne({ 
+        bookingId: booking._id,
+        status: 'success'
+      });
+      
+      return {
+        ...booking.toObject(),
+        paymentCompleted: !!payment,
+        paymentDetails: payment ? {
+          amount: payment.amount,
+          completedAt: payment.completedAt,
+          transactionUuid: payment.transactionUuid
+        } : null
+      };
+    }));
 
-    const formattedBookings = bookings.map((booking) => ({
-      ...booking.toObject(),
+    const formattedBookings = bookingsWithPaymentStatus.map((booking) => ({
+      ...booking,
       user: {
         ...booking.user,
         avatar: getFullImageUrl(booking.user.avatar),

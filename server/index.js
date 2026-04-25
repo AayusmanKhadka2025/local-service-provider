@@ -13,7 +13,8 @@ const userRoutes = require('./routes/userRoutes');
 const providerRoutes = require('./routes/providerRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const { router: chatRoutes, saveMessage } = require('./routes/chatRoutes'); // ← saveMessage is already imported here
+const paymentRoutes = require('./routes/paymentRoutes');
+const { router: chatRoutes, saveMessage } = require('./routes/chatRoutes');
 
 // Import Google Auth Service
 require('./services/googleAuthService');
@@ -61,6 +62,9 @@ app.use('/api/admin', adminRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/chat", chatRoutes);
 
+app.use('/api/payments', paymentRoutes);
+
+
 // Health check
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -70,8 +74,9 @@ app.get("/health", (req, res) => {
 });
 
 // Socket.IO connection handling
-// REMOVED the duplicate require line below
 const connectedUsers = new Map();
+// Server-side deduplication: track recently processed message IDs
+const processedMessages = new Set();
 
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
@@ -91,10 +96,25 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} joined chat ${chatId}`);
   });
 
-  // Send message
+  // Send message with server-side deduplication
   socket.on('send_message', async (data) => {
     try {
-      const { chatId, senderId, senderType, receiverId, receiverType, message, messageType, mediaUrl, senderName, providerName, providerAvatar, userName, bookingId } = data;
+      const { chatId, senderId, senderType, receiverId, receiverType, message, messageType, mediaUrl, senderName, providerName, providerAvatar, userName, bookingId, tempId } = data;
+      
+      // Generate a unique message signature for deduplication
+      const messageSignature = `${senderId}_${receiverId}_${Date.now()}_${(message || mediaUrl || '').substring(0, 30)}`;
+      
+      // Check for duplicate on server side
+      if (processedMessages.has(messageSignature)) {
+        console.log('Duplicate message detected on server, skipping');
+        return;
+      }
+      processedMessages.add(messageSignature);
+      
+      // Clean up after 2 seconds
+      setTimeout(() => {
+        processedMessages.delete(messageSignature);
+      }, 2000);
       
       console.log('Sending message:', { senderId, receiverId, message: message ? message.substring(0, 50) : 'media message' });
       
@@ -115,11 +135,13 @@ io.on('connection', (socket) => {
       });
       
       if (result.success) {
+        // Emit to all clients in the chat room
         io.to(`chat_${result.chatId}`).emit('new_message', {
           ...result.message.toObject(),
           _id: result.message._id
         });
         
+        // Send notification to receiver
         const receiverSocket = connectedUsers.get(receiverId);
         if (receiverSocket) {
           io.to(receiverSocket.socketId).emit('message_notification', {

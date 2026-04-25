@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
-import io from "socket.io-client";
+import io from "socket.io-client";  // Fixed: changed from "socket.io/client"
 import {
   Send,
   Paperclip,
@@ -8,8 +8,7 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
-  MessageSquare,
-  X
+  MessageSquare
 } from "lucide-react";
 
 const SOCKET_URL = "http://localhost:5050";
@@ -28,6 +27,8 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageIdsRef = useRef(new Set()); // Track message IDs to prevent duplicates
+  
   const provider = JSON.parse(localStorage.getItem("provider") || "{}");
   const token = localStorage.getItem("providerToken");
 
@@ -39,7 +40,7 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize socket connection
+  // Initialize socket connection - only once
   useEffect(() => {
     const newSocket = io(SOCKET_URL, { transports: ["websocket"] });
     setSocket(newSocket);
@@ -50,14 +51,17 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
     });
 
     return () => {
-      newSocket.disconnect();
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
   }, [provider._id]);
 
-  // Join chat room and fetch messages
+  // Join chat room and fetch messages - separate effect
   useEffect(() => {
     if (!chat?._id || !socket) return;
 
+    // Join the chat room
     socket.emit("join_chat", { chatId: chat._id });
 
     const fetchMessages = async () => {
@@ -67,7 +71,13 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (response.data.success) {
-          setMessages(response.data.messages);
+          const fetchedMessages = response.data.messages;
+          // Clear the Set and add existing message IDs
+          messageIdsRef.current.clear();
+          fetchedMessages.forEach(msg => {
+            if (msg._id) messageIdsRef.current.add(msg._id);
+          });
+          setMessages(fetchedMessages);
         }
       } catch (error) {
         console.error("Error fetching messages:", error);
@@ -79,81 +89,111 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
     fetchMessages();
   }, [chat, socket, token]);
 
-  // Socket event listeners
+  // Socket event listeners - with cleanup and deduplication
   useEffect(() => {
     if (!socket) return;
-
-    socket.on("new_message", (message) => {
-      setMessages((prev) => [...prev, message]);
-    });
-
-    socket.on("user_typing", (data) => {
+    
+    // Store listeners in variables for proper cleanup
+    const handleNewMessage = (message) => {
+      // Check if we already have this message to prevent duplicates
+      if (message._id && messageIdsRef.current.has(message._id)) {
+        console.log("Duplicate message detected, skipping:", message._id);
+        return;
+      }
+      
+      // Add message ID to Set
+      if (message._id) {
+        messageIdsRef.current.add(message._id);
+      }
+      
+      setMessages(prev => {
+        // Additional check to ensure no duplicate in current state
+        const exists = prev.some(m => m._id === message._id);
+        if (exists) return prev;
+        return [...prev, message];
+      });
+    };
+    
+    const handleUserTyping = (data) => {
       setOtherUserTyping(data.isTyping);
-    });
-
-    socket.on("messages_read", (data) => {
+    };
+    
+    const handleMessagesRead = (data) => {
       if (data.userId === provider._id) return;
-      setMessages((prev) =>
-        prev.map((msg) =>
+      setMessages(prev =>
+        prev.map(msg =>
           msg.receiverId === provider._id && !msg.read ? { ...msg, read: true } : msg
         )
       );
-    });
-
+    };
+    
+    // Set up event listeners
+    socket.on("new_message", handleNewMessage);
+    socket.on("user_typing", handleUserTyping);
+    socket.on("messages_read", handleMessagesRead);
+    
+    // Cleanup function - remove all listeners
     return () => {
-      socket.off("new_message");
-      socket.off("user_typing");
-      socket.off("messages_read");
+      socket.off("new_message", handleNewMessage);
+      socket.off("user_typing", handleUserTyping);
+      socket.off("messages_read", handleMessagesRead);
     };
   }, [socket, provider._id]);
 
-  // Send message
-  const sendMessage = async () => {
-    if (!newMessage.trim() || sending) return;
-
+  // Send message - fixed to avoid duplicates
+  const sendMessage = useCallback(async () => {
+    if (!newMessage.trim() || sending || !chat?._id) return;
+    
     setSending(true);
-
+    
+    const messageContent = newMessage;
+    
+    // Clear input immediately for better UX
+    setNewMessage("");
+    
+    // Emit via socket (let server create the message)
     socket.emit("send_message", {
       chatId: chat._id,
       senderId: provider._id,
       senderType: "provider",
       receiverId: user._id,
       receiverType: "user",
-      message: newMessage,
+      message: messageContent,
       messageType: "text",
       providerName: `${provider.firstName} ${provider.lastName}`,
       providerAvatar: provider.profileImage,
       userName: user.name
     });
-
-    setNewMessage("");
+    
     setSending(false);
-  };
+  }, [newMessage, sending, chat, provider, user._id, user.name, socket]);
 
-  const handleTyping = (e) => {
+  const handleTyping = useCallback((e) => {
     setNewMessage(e.target.value);
-
-    if (!isTyping) {
+    
+    if (!isTyping && chat?._id) {
       setIsTyping(true);
-      socket?.emit("typing", { chatId: chat?._id, userId: provider._id, isTyping: true });
+      socket?.emit("typing", { chatId: chat._id, userId: provider._id, isTyping: true });
     }
-
+    
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      socket?.emit("typing", { chatId: chat?._id, userId: provider._id, isTyping: false });
+      if (socket && chat?._id) {
+        setIsTyping(false);
+        socket.emit("typing", { chatId: chat._id, userId: provider._id, isTyping: false });
+      }
     }, 1000);
-  };
+  }, [isTyping, chat, socket, provider._id]);
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = useCallback(async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
+    if (!file || !chat?._id) return;
+    
     setUploading(true);
-
+    
     const formData = new FormData();
     formData.append("file", file);
-
+    
     try {
       const response = await axios.post(
         "http://localhost:5050/api/chat/provider/upload",
@@ -187,7 +227,7 @@ const ProviderChat = ({ chat: initialChat, user, onClose }) => {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  };
+  }, [chat, socket, provider, user._id, user.name, token]);
 
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

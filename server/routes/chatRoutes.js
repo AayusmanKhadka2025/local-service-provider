@@ -6,6 +6,7 @@ const { protectUser } = require('../middleware/auth');
 const { protectProvider } = require('../middleware/providerAuth');
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
+const Booking = require('../models/Booking');
 
 const router = express.Router();
 
@@ -40,14 +41,17 @@ const upload = multer({
   }
 });
 
-// Helper function to find or create chat
+// CRITICAL FIX: Find or create chat - ONLY ONE per user-provider pair
 const findOrCreateChat = async (userId, providerId, userName, providerName, providerAvatar) => {
+  // ALWAYS try to find existing chat by user-provider pair first
   let chat = await Chat.findOne({
     'participants.user.userId': userId,
     'participants.provider.providerId': providerId
   });
   
+  // If no chat exists, create one
   if (!chat) {
+    console.log(`Creating new chat for user ${userId} and provider ${providerId}`);
     chat = await Chat.create({
       participants: {
         user: {
@@ -61,33 +65,52 @@ const findOrCreateChat = async (userId, providerId, userName, providerName, prov
           avatar: providerAvatar || ''
         }
       },
-      bookingId: null,
+      bookingId: null, // Not tied to a specific booking
       lastMessage: '',
-      lastMessageTime: new Date()
+      lastMessageTime: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
+  } else {
+    console.log(`Found existing chat ${chat._id} for user ${userId} and provider ${providerId}`);
   }
   
   return chat;
 };
 
-// Get or create chat
+// Get or create chat - ALWAYS use user-provider pair, NOT booking-specific
 router.post('/get-or-create', protectUser, async (req, res) => {
   try {
     const { providerId, providerName, providerAvatar } = req.body;
     const userId = req.userId;
     const user = req.user;
-
+    
+    if (!providerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provider ID is required'
+      });
+    }
+    
+    console.log('Get or create chat request:', { userId, providerId });
+    
+    // CRITICAL: Always use user-provider pair, ignore bookingId
     const chat = await findOrCreateChat(
       userId, 
       providerId, 
-      user.fullName, 
+      user.fullName || user.name, 
       providerName, 
       providerAvatar
     );
     
     res.status(200).json({
       success: true,
-      chat
+      chat: {
+        _id: chat._id,
+        participants: chat.participants,
+        bookingId: chat.bookingId,
+        createdAt: chat.createdAt
+      }
     });
   } catch (error) {
     console.error('Get or create chat error:', error);
@@ -99,33 +122,47 @@ router.post('/get-or-create', protectUser, async (req, res) => {
   }
 });
 
-// Get chat list for user
+// Get chat list for user - DEDUPLICATED (ensure unique provider per chat)
 router.get('/user/chats', protectUser, async (req, res) => {
   try {
     const userId = req.userId;
+    
+    // Find all chats where this user is participant
     const chats = await Chat.find({ 'participants.user.userId': userId })
       .sort({ lastMessageTime: -1 });
     
-    const chatsWithLastMessage = await Promise.all(chats.map(async (chat) => {
-      const lastMessage = await Message.findOne({ chatId: chat._id.toString() })
-        .sort({ createdAt: -1 });
-      const unreadCount = await Message.countDocuments({
-        chatId: chat._id.toString(),
-        receiverId: userId,
-        read: false
-      });
-      
-      return {
-        ...chat.toObject(),
-        lastMessage: lastMessage ? (lastMessage.messageType === 'text' ? lastMessage.message : (lastMessage.messageType === 'image' ? '📷 Image' : '🎥 Video')) : 'No messages yet',
-        lastMessageTime: lastMessage ? lastMessage.createdAt : chat.lastMessageTime,
-        unreadCount
-      };
-    }));
+    // Deduplicate by provider ID (in case of duplicate entries)
+    const uniqueChats = [];
+    const providerIds = new Set();
+    
+    for (const chat of chats) {
+      const providerId = chat.participants.provider.providerId.toString();
+      if (!providerIds.has(providerId)) {
+        providerIds.add(providerId);
+        
+        const lastMessage = await Message.findOne({ chatId: chat._id.toString() })
+          .sort({ createdAt: -1 });
+        const unreadCount = await Message.countDocuments({
+          chatId: chat._id.toString(),
+          receiverId: userId,
+          read: false
+        });
+        
+        uniqueChats.push({
+          _id: chat._id,
+          participants: chat.participants,
+          bookingId: chat.bookingId,
+          lastMessage: lastMessage ? (lastMessage.messageType === 'text' ? lastMessage.message : (lastMessage.messageType === 'image' ? '📷 Image' : '🎥 Video')) : 'No messages yet',
+          lastMessageTime: lastMessage ? lastMessage.createdAt : chat.lastMessageTime,
+          unreadCount,
+          createdAt: chat.createdAt
+        });
+      }
+    }
     
     res.status(200).json({
       success: true,
-      chats: chatsWithLastMessage
+      chats: uniqueChats
     });
   } catch (error) {
     console.error('Get user chats error:', error);
@@ -137,33 +174,46 @@ router.get('/user/chats', protectUser, async (req, res) => {
   }
 });
 
-// Get chat list for provider
+// Get chat list for provider - DEDUPLICATED
 router.get('/provider/chats', protectProvider, async (req, res) => {
   try {
     const providerId = req.providerId;
+    
     const chats = await Chat.find({ 'participants.provider.providerId': providerId })
       .sort({ lastMessageTime: -1 });
     
-    const chatsWithLastMessage = await Promise.all(chats.map(async (chat) => {
-      const lastMessage = await Message.findOne({ chatId: chat._id.toString() })
-        .sort({ createdAt: -1 });
-      const unreadCount = await Message.countDocuments({
-        chatId: chat._id.toString(),
-        receiverId: providerId,
-        read: false
-      });
-      
-      return {
-        ...chat.toObject(),
-        lastMessage: lastMessage ? (lastMessage.messageType === 'text' ? lastMessage.message : (lastMessage.messageType === 'image' ? '📷 Image' : '🎥 Video')) : 'No messages yet',
-        lastMessageTime: lastMessage ? lastMessage.createdAt : chat.lastMessageTime,
-        unreadCount
-      };
-    }));
+    // Deduplicate by user ID
+    const uniqueChats = [];
+    const userIds = new Set();
+    
+    for (const chat of chats) {
+      const userId = chat.participants.user.userId.toString();
+      if (!userIds.has(userId)) {
+        userIds.add(userId);
+        
+        const lastMessage = await Message.findOne({ chatId: chat._id.toString() })
+          .sort({ createdAt: -1 });
+        const unreadCount = await Message.countDocuments({
+          chatId: chat._id.toString(),
+          receiverId: providerId,
+          read: false
+        });
+        
+        uniqueChats.push({
+          _id: chat._id,
+          participants: chat.participants,
+          bookingId: chat.bookingId,
+          lastMessage: lastMessage ? (lastMessage.messageType === 'text' ? lastMessage.message : (lastMessage.messageType === 'image' ? '📷 Image' : '🎥 Video')) : 'No messages yet',
+          lastMessageTime: lastMessage ? lastMessage.createdAt : chat.lastMessageTime,
+          unreadCount,
+          createdAt: chat.createdAt
+        });
+      }
+    }
     
     res.status(200).json({
       success: true,
-      chats: chatsWithLastMessage
+      chats: uniqueChats
     });
   } catch (error) {
     console.error('Get provider chats error:', error);
@@ -188,17 +238,18 @@ router.get('/messages/:chatId', protectUser, async (req, res) => {
       });
     }
     
-    const messages = await Message.find({ chatId })
+    const messages = await Message.find({ chatId: chatId.toString() })
       .sort({ createdAt: 1 });
     
+    // Mark messages as read
     await Message.updateMany(
-      { chatId, receiverId: req.userId, read: false },
+      { chatId: chatId.toString(), receiverId: req.userId, read: false },
       { read: true }
     );
     
     res.status(200).json({
       success: true,
-      messages
+      messages: messages
     });
   } catch (error) {
     console.error('Get messages error:', error);
@@ -223,17 +274,18 @@ router.get('/provider/messages/:chatId', protectProvider, async (req, res) => {
       });
     }
     
-    const messages = await Message.find({ chatId })
+    const messages = await Message.find({ chatId: chatId.toString() })
       .sort({ createdAt: 1 });
     
+    // Mark messages as read
     await Message.updateMany(
-      { chatId, receiverId: req.providerId, read: false },
+      { chatId: chatId.toString(), receiverId: req.providerId, read: false },
       { read: true }
     );
     
     res.status(200).json({
       success: true,
-      messages
+      messages: messages
     });
   } catch (error) {
     console.error('Get messages error:', error);
@@ -251,9 +303,10 @@ const saveMessage = async (messageData) => {
     const { chatId, senderId, senderType, receiverId, receiverType, message, messageType, mediaUrl, senderName, providerName, providerAvatar, userName } = messageData;
     
     let finalChatId = chatId;
+    let chat = null;
     
-    if (!chatId || chatId === 'temp') {
-      let chat;
+    // If no valid chatId, find or create chat based on user-provider pair
+    if (!chatId || chatId === 'temp' || chatId === 'null' || chatId === 'undefined') {
       if (senderType === 'user') {
         chat = await findOrCreateChat(
           senderId, 
@@ -272,26 +325,39 @@ const saveMessage = async (messageData) => {
         );
       }
       finalChatId = chat._id.toString();
+      console.log('Created/found chat for message:', finalChatId);
+    } else {
+      // Verify chat exists
+      chat = await Chat.findById(chatId);
+      if (!chat) {
+        console.error('Chat not found:', chatId);
+        return { success: false, error: 'Chat not found' };
+      }
+      finalChatId = chatId;
     }
     
+    // Create message
     const newMessage = await Message.create({
       chatId: finalChatId,
       senderId,
       senderType,
       receiverId,
       receiverType,
-      message,
-      messageType,
+      message: message || '',
+      messageType: messageType || 'text',
       mediaUrl: mediaUrl || '',
       read: false,
       createdAt: new Date()
     });
     
+    // Update chat's last message
     await Chat.findByIdAndUpdate(finalChatId, {
-      lastMessage: messageType === 'text' ? message : (messageType === 'image' ? '📷 Image' : '🎥 Video'),
+      lastMessage: messageType === 'text' ? (message || 'Media message') : (messageType === 'image' ? '📷 Image' : '🎥 Video'),
       lastMessageTime: new Date(),
       updatedAt: new Date()
     });
+    
+    console.log('Message saved successfully:', newMessage._id);
     
     return { success: true, message: newMessage, chatId: finalChatId };
   } catch (error) {
@@ -356,5 +422,54 @@ router.post('/provider/upload', protectProvider, upload.single('file'), async (r
   }
 });
 
-// Export both router and saveMessage
+// Delete duplicate chats for a user-provider pair (Run once to clean up)
+router.post('/cleanup-duplicates', protectUser, async (req, res) => {
+  try {
+    const { providerId } = req.body;
+    const userId = req.userId;
+    
+    // Find all chats for this user-provider pair
+    const chats = await Chat.find({
+      'participants.user.userId': userId,
+      'participants.provider.providerId': providerId
+    });
+    
+    if (chats.length <= 1) {
+      return res.status(200).json({
+        success: true,
+        message: 'No duplicates found',
+        deletedCount: 0
+      });
+    }
+    
+    // Keep the most recent chat, delete others
+    const sortedChats = chats.sort((a, b) => b.updatedAt - a.updatedAt);
+    const keepChat = sortedChats[0];
+    const deleteChats = sortedChats.slice(1);
+    
+    // Move messages from duplicate chats to the kept chat
+    for (const duplicateChat of deleteChats) {
+      await Message.updateMany(
+        { chatId: duplicateChat._id.toString() },
+        { chatId: keepChat._id.toString() }
+      );
+      await Chat.findByIdAndDelete(duplicateChat._id);
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: `Cleaned up ${deleteChats.length} duplicate chats`,
+      deletedCount: deleteChats.length,
+      keptChatId: keepChat._id
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
 module.exports = { router, saveMessage };

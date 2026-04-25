@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import ProfileSettings from "./ProfileSettings";
 import UserChat from "./UserChat";
+import PaymentButton from "../components/PaymentButton";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -344,6 +345,37 @@ const UserDashboard = () => {
 
     fetchBookings();
   }, []);
+
+  // Add this useEffect in UserDashboard.jsx (after fetchBookings)
+  useEffect(() => {
+    const cleanupDuplicateChats = async () => {
+      const token = localStorage.getItem("token");
+      // Get all unique provider IDs from bookings
+      const uniqueProviderIds = new Set();
+      bookings.forEach((booking) => {
+        if (booking.provider?.providerId) {
+          uniqueProviderIds.add(booking.provider.providerId);
+        }
+      });
+
+      // Clean up duplicates for each provider
+      for (const providerId of uniqueProviderIds) {
+        try {
+          await axios.post(
+            "http://localhost:5050/api/chat/cleanup-duplicates",
+            { providerId },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        } catch (error) {
+          console.error("Cleanup error for provider:", providerId, error);
+        }
+      }
+    };
+
+    if (bookings.length > 0) {
+      cleanupDuplicateChats();
+    }
+  }, [bookings]);
 
   // Mark notification as read
   const markAsRead = (notificationId) => {
@@ -742,6 +774,28 @@ const UserDashboard = () => {
     const showViewAll = hasMoreThanFour(historyBookingsList);
     const isEmpty = historyBookingsList.length === 0;
 
+    // Handle payment completion - refresh bookings
+    const handlePaymentComplete = async (payment) => {
+      showToast(
+        `Payment of Rs. ${payment.amount} completed successfully!`,
+        "success",
+      );
+
+      // Refresh bookings to update payment status
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          "http://localhost:5050/api/bookings/user",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.data.success) {
+          setBookings(response.data.bookings);
+        }
+      } catch (error) {
+        console.error("Error refreshing bookings:", error);
+      }
+    };
+
     return (
       <section className="mb-10">
         <div className="flex justify-between items-center mb-4">
@@ -797,6 +851,7 @@ const UserDashboard = () => {
                 getStatusColor={getStatusColor}
                 getStatusLabel={getStatusLabel}
                 renderStars={renderStars}
+                onPaymentComplete={handlePaymentComplete}
               />
             ))}
           </div>
@@ -1402,6 +1457,7 @@ const UserDashboard = () => {
 };
 
 // Booking Card Component (updated with responsive design)
+// Booking Card Component (updated with payment button)
 const BookingCard = ({
   booking,
   type,
@@ -1415,6 +1471,7 @@ const BookingCard = ({
   getStatusColor,
   getStatusLabel,
   renderStars,
+  onPaymentComplete, // Add this prop
 }) => {
   const statusColor = getStatusColor(booking.status);
   const statusLabel = getStatusLabel(booking.status);
@@ -1423,6 +1480,8 @@ const BookingCard = ({
     booking.status === "completed" &&
     (!booking.rating || booking.rating === null);
   const hasReviewed = booking.rating && booking.rating !== null;
+  const needsPayment =
+    booking.status === "completed" && !booking.paymentCompleted;
 
   return (
     <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition-all border border-gray-100">
@@ -1496,6 +1555,16 @@ const BookingCard = ({
               <XCircle className="w-3 h-3 md:w-4 md:h-4" />
               Cancel
             </button>
+          )}
+
+          {/* Payment Button - Show for completed bookings that need payment */}
+          {type === "history" && needsPayment && (
+            <div className="mt-3 pt-2">
+              <PaymentButton
+                booking={booking}
+                onPaymentComplete={onPaymentComplete}
+              />
+            </div>
           )}
 
           {type === "history" && canReview && (

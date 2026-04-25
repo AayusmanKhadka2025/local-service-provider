@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import io from "socket.io-client";
 import {
@@ -8,7 +8,7 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
-  MessageSquare
+  MessageSquare,
 } from "lucide-react";
 
 const SOCKET_URL = "http://localhost:5050";
@@ -27,6 +27,7 @@ const UserChat = ({ booking, provider, onClose }) => {
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const token = localStorage.getItem("token");
 
@@ -49,163 +50,234 @@ const UserChat = ({ booking, provider, onClose }) => {
     });
 
     return () => {
-      newSocket.disconnect();
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
   }, [user._id]);
 
-  // Get or create chat
+  // Get or create chat - runs once when component mounts
   useEffect(() => {
-    const getOrCreateChat = async () => {
+    const initializeChat = async () => {
+      if (!user._id || !provider._id) return;
+
       try {
+        setLoading(true);
+
         const response = await axios.post(
           "http://localhost:5050/api/chat/get-or-create",
           {
-            bookingId: booking._id,
+            bookingId: booking?._id,
             providerId: provider._id,
             providerName: provider.name,
-            providerAvatar: provider.avatar
+            providerAvatar: provider.avatar,
           },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
-        
-        if (response.data.success) {
-          setChat(response.data.chat);
-          
+
+        if (response.data.success && response.data.chat) {
+          const chatData = response.data.chat;
+          setChat(chatData);
+
+          // Join chat room
           if (socket) {
-            socket.emit("join_chat", { chatId: response.data.chat._id });
+            socket.emit("join_chat", { chatId: chatData._id });
           }
-          
+
+          // Fetch messages
           const messagesResponse = await axios.get(
-            `http://localhost:5050/api/chat/messages/${response.data.chat._id}`,
-            { headers: { Authorization: `Bearer ${token}` } }
+            `http://localhost:5050/api/chat/messages/${chatData._id}`,
+            { headers: { Authorization: `Bearer ${token}` } },
           );
-          
+
           if (messagesResponse.data.success) {
             setMessages(messagesResponse.data.messages);
           }
         }
       } catch (error) {
-        console.error("Error getting chat:", error);
+        console.error("Error initializing chat:", error);
       } finally {
         setLoading(false);
       }
     };
-    
-    getOrCreateChat();
-  }, [booking, provider, token, socket]);
+
+    initializeChat();
+  }, [booking?._id, provider._id, user._id, token]); // Run only once when component mounts
 
   // Socket event listeners
   useEffect(() => {
-    if (!socket) return;
-    
-    socket.on("new_message", (message) => {
-      setMessages(prev => [...prev, message]);
-    });
-    
-    socket.on("user_typing", (data) => {
-      setOtherUserTyping(data.isTyping);
-    });
-    
-    socket.on("messages_read", (data) => {
-      if (data.userId === user._id) return;
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.receiverId === user._id && !msg.read ? { ...msg, read: true } : msg
-        )
-      );
-    });
-    
-    return () => {
-      socket.off("new_message");
-      socket.off("user_typing");
-      socket.off("messages_read");
+    if (!socket || !chat) return;
+
+    const handleNewMessage = (message) => {
+      // Only add message if it's for this chat
+      if (message.chatId === chat._id) {
+        setMessages((prev) => {
+          // Check for duplicate by ID
+          const exists = prev.some((m) => m._id === message._id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
+      }
     };
-  }, [socket, user._id]);
+
+    const handleUserTyping = (data) => {
+      if (data.userId === provider._id) {
+        setOtherUserTyping(data.isTyping);
+      }
+    };
+
+    const handleMessagesRead = (data) => {
+      if (data.userId === user._id) return;
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.receiverId === user._id && !msg.read
+            ? { ...msg, read: true }
+            : msg,
+        ),
+      );
+    };
+
+    socket.on("new_message", handleNewMessage);
+    socket.on("user_typing", handleUserTyping);
+    socket.on("messages_read", handleMessagesRead);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+      socket.off("user_typing", handleUserTyping);
+      socket.off("messages_read", handleMessagesRead);
+    };
+  }, [socket, chat, provider._id, user._id]);
 
   // Send message
-  const sendMessage = async () => {
-    if (!newMessage.trim() || sending || !chat) return;
-    
+  const sendMessage = useCallback(async () => {
+    if (!newMessage.trim() || sending || !chat?._id) return;
+
     setSending(true);
-    
+    const messageContent = newMessage;
+
+    // Clear input
+    setNewMessage("");
+
+    // Emit via socket
     socket.emit("send_message", {
       chatId: chat._id,
       senderId: user._id,
       senderType: "user",
       receiverId: provider._id,
       receiverType: "provider",
-      message: newMessage,
+      message: messageContent,
       messageType: "text",
       senderName: user.name,
       providerName: provider.name,
-      providerAvatar: provider.avatar
+      providerAvatar: provider.avatar,
+      bookingId: booking?._id,
     });
-    
-    setNewMessage("");
+
     setSending(false);
-  };
+  }, [
+    newMessage,
+    sending,
+    chat,
+    user._id,
+    provider._id,
+    socket,
+    user.name,
+    provider.name,
+    provider.avatar,
+    booking?._id,
+  ]);
 
-  const handleTyping = (e) => {
-    setNewMessage(e.target.value);
-    
-    if (!isTyping) {
-      setIsTyping(true);
-      socket?.emit("typing", { chatId: chat?._id, userId: user._id, isTyping: true });
-    }
-    
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      socket?.emit("typing", { chatId: chat?._id, userId: user._id, isTyping: false });
-    }, 1000);
-  };
+  const handleTyping = useCallback(
+    (e) => {
+      setNewMessage(e.target.value);
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    setUploading(true);
-    
-    const formData = new FormData();
-    formData.append("file", file);
-    
-    try {
-      const response = await axios.post(
-        "http://localhost:5050/api/chat/upload",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-      
-      if (response.data.success) {
-        socket.emit("send_message", {
+      if (!isTyping && chat?._id) {
+        setIsTyping(true);
+        socket?.emit("typing", {
           chatId: chat._id,
-          senderId: user._id,
-          senderType: "user",
-          receiverId: provider._id,
-          receiverType: "provider",
-          message: "",
-          messageType: response.data.fileType,
-          mediaUrl: response.data.fileUrl,
-          senderName: user.name,
-          providerName: provider.name,
-          providerAvatar: provider.avatar
+          userId: user._id,
+          isTyping: true,
         });
       }
-    } catch (error) {
-      console.error("Upload error:", error);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
+
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        if (socket && chat?._id) {
+          setIsTyping(false);
+          socket.emit("typing", {
+            chatId: chat._id,
+            userId: user._id,
+            isTyping: false,
+          });
+        }
+      }, 1000);
+    },
+    [isTyping, chat, socket, user._id],
+  );
+
+  const handleFileUpload = useCallback(
+    async (e) => {
+      const file = e.target.files[0];
+      if (!file || !chat?._id) return;
+
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await axios.post(
+          "http://localhost:5050/api/chat/upload",
+          formData,
+          {
+            headers: {
+              "Content-Type": "multipart/form-data",
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        if (response.data.success) {
+          socket.emit("send_message", {
+            chatId: chat._id,
+            senderId: user._id,
+            senderType: "user",
+            receiverId: provider._id,
+            receiverType: "provider",
+            message: "",
+            messageType: response.data.fileType,
+            mediaUrl: response.data.fileUrl,
+            senderName: user.name,
+            providerName: provider.name,
+            providerAvatar: provider.avatar,
+            bookingId: booking?._id,
+          });
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [
+      chat,
+      socket,
+      user._id,
+      provider._id,
+      user.name,
+      provider.name,
+      provider.avatar,
+      token,
+      booking?._id,
+    ],
+  );
 
   const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(date).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const formatMessageDate = (date) => {
@@ -213,7 +285,7 @@ const UserChat = ({ booking, provider, onClose }) => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     if (msgDate.toDateString() === today.toDateString()) return "Today";
     if (msgDate.toDateString() === yesterday.toDateString()) return "Yesterday";
     return msgDate.toLocaleDateString();
@@ -239,11 +311,17 @@ const UserChat = ({ booking, provider, onClose }) => {
       {/* Chat Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-white hover:bg-white/20 p-1 rounded-lg transition">
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 p-1 rounded-lg transition"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <img
-            src={provider.avatar || `https://ui-avatars.com/api/?name=${provider.name}&background=ffffff&color=3b82f6&size=80`}
+            src={
+              provider.avatar ||
+              `https://ui-avatars.com/api/?name=${provider.name}&background=ffffff&color=3b82f6&size=80`
+            }
             className="w-10 h-10 rounded-full object-cover border-2 border-white"
             alt={provider.name}
           />
@@ -259,30 +337,47 @@ const UserChat = ({ booking, provider, onClose }) => {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <MessageSquare className="w-16 h-16 text-gray-300 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700">No messages yet</h3>
-            <p className="text-sm text-gray-500 mt-2">Send a message to {provider.name} to start the conversation.</p>
+            <h3 className="text-lg font-semibold text-gray-700">
+              No messages yet
+            </h3>
+            <p className="text-sm text-gray-500 mt-2">
+              Send a message to {provider.name} to start the conversation.
+            </p>
           </div>
         ) : (
           Object.entries(groupedMessages).map(([date, dateMessages]) => (
             <div key={date}>
               <div className="text-center my-4">
-                <span className="text-xs text-gray-400 bg-gray-200 px-3 py-1 rounded-full">{date}</span>
+                <span className="text-xs text-gray-400 bg-gray-200 px-3 py-1 rounded-full">
+                  {date}
+                </span>
               </div>
               {dateMessages.map((message) => {
                 const isSender = message.senderId === user._id;
                 return (
-                  <div key={message._id} className={`flex ${isSender ? "justify-end" : "justify-start"} mb-3`}>
-                    <div className={`max-w-[70%] ${isSender ? "order-2" : "order-1"}`}>
-                      <div className={`rounded-2xl px-4 py-2 ${isSender ? "bg-blue-600 text-white" : "bg-white border border-gray-200"}`}>
+                  <div
+                    key={message._id}
+                    className={`flex ${isSender ? "justify-end" : "justify-start"} mb-3`}
+                  >
+                    <div
+                      className={`max-w-[70%] ${isSender ? "order-2" : "order-1"}`}
+                    >
+                      <div
+                        className={`rounded-2xl px-4 py-2 ${isSender ? "bg-blue-600 text-white" : "bg-white border border-gray-200"}`}
+                      >
                         {message.messageType === "text" && (
-                          <p className="text-sm break-words">{message.message}</p>
+                          <p className="text-sm break-words">
+                            {message.message}
+                          </p>
                         )}
                         {message.messageType === "image" && (
                           <img
                             src={message.mediaUrl}
                             alt="Shared image"
                             className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition"
-                            onClick={() => window.open(message.mediaUrl, "_blank")}
+                            onClick={() =>
+                              window.open(message.mediaUrl, "_blank")
+                            }
                           />
                         )}
                         {message.messageType === "video" && (
@@ -293,15 +388,25 @@ const UserChat = ({ booking, provider, onClose }) => {
                             controlsList="nodownload"
                           />
                         )}
-                        <div className={`text-xs mt-1 flex items-center justify-end gap-1 ${isSender ? "text-blue-200" : "text-gray-400"}`}>
+                        <div
+                          className={`text-xs mt-1 flex items-center justify-end gap-1 ${isSender ? "text-blue-200" : "text-gray-400"}`}
+                        >
                           <span>{formatTime(message.createdAt)}</span>
-                          {isSender && (message.read ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />)}
+                          {isSender &&
+                            (message.read ? (
+                              <CheckCheck className="w-3 h-3" />
+                            ) : (
+                              <Check className="w-3 h-3" />
+                            ))}
                         </div>
                       </div>
                     </div>
                     {!isSender && (
                       <img
-                        src={provider.avatar || `https://ui-avatars.com/api/?name=${provider.name}&background=3b82f6&color=fff&size=80`}
+                        src={
+                          provider.avatar ||
+                          `https://ui-avatars.com/api/?name=${provider.name}&background=3b82f6&color=fff&size=80`
+                        }
                         className="w-8 h-8 rounded-full object-cover mx-2 order-0"
                         alt={provider.name}
                       />
@@ -350,7 +455,24 @@ const UserChat = ({ booking, provider, onClose }) => {
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-4 bg-white rounded-lg shadow-lg border p-2 z-10">
               <div className="grid grid-cols-8 gap-1">
-                {["😊", "😂", "❤️", "👍", "🎉", "🔥", "👏", "🙏", "😢", "😡", "🥳", "💪", "👋", "✅", "⭐", "💯"].map((emoji) => (
+                {[
+                  "😊",
+                  "😂",
+                  "❤️",
+                  "👍",
+                  "🎉",
+                  "🔥",
+                  "👏",
+                  "🙏",
+                  "😢",
+                  "😡",
+                  "🥳",
+                  "💪",
+                  "👋",
+                  "✅",
+                  "⭐",
+                  "💯",
+                ].map((emoji) => (
                   <button
                     key={emoji}
                     onClick={() => {

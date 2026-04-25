@@ -46,7 +46,7 @@ import {
 const SOCKET_URL = "http://localhost:5050";
 
 // Chat Component for Booking Page
-const BookingChat = ({ provider, user, onClose, bookingId }) => {
+const BookingChat = ({ provider, user, onClose }) => {
   const [socket, setSocket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -85,8 +85,7 @@ const BookingChat = ({ provider, user, onClose, bookingId }) => {
     };
   }, [user._id]);
 
-  // Get or create chat
-  // Get or create chat - Update this useEffect
+  // Get or create chat - NO BOOKING ID
   useEffect(() => {
     const getOrCreateChat = async () => {
       try {
@@ -132,70 +131,48 @@ const BookingChat = ({ provider, user, onClose, bookingId }) => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("new_message", (message) => {
-      setMessages((prev) => [...prev, message]);
-    });
+    const handleNewMessage = (message) => {
+      if (message.chatId === chat?._id) {
+        setMessages((prev) => {
+          const exists = prev.some(m => m._id === message._id);
+          if (exists) return prev;
+          return [...prev, message];
+        });
+      }
+    };
 
+    socket.on("new_message", handleNewMessage);
     socket.on("user_typing", (data) => {
       setOtherUserTyping(data.isTyping);
     });
 
-    socket.on("messages_read", (data) => {
-      if (data.userId === user._id) return;
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.receiverId === user._id && !msg.read
-            ? { ...msg, read: true }
-            : msg,
-        ),
-      );
-    });
-
     return () => {
-      socket.off("new_message");
+      socket.off("new_message", handleNewMessage);
       socket.off("user_typing");
-      socket.off("messages_read");
     };
-  }, [socket, user._id]);
+  }, [socket, chat?._id]);
 
-  // Send message
-  // Send message
+  // Send message - NO optimistic update
   const sendMessage = async () => {
-    if (!newMessage.trim() || sending) return;
-
+    if (!newMessage.trim() || sending || !chat?._id) return;
+    
     setSending(true);
-
-    const messageData = {
-      chatId: chat?._id === "temp" ? null : chat?._id,
+    const messageContent = newMessage;
+    setNewMessage("");
+    
+    socket.emit("send_message", {
+      chatId: chat._id,
       senderId: user._id,
       senderType: "user",
       receiverId: provider._id,
       receiverType: "provider",
-      message: newMessage,
+      message: messageContent,
       messageType: "text",
       senderName: user.name,
       providerName: `${provider.firstName} ${provider.lastName}`,
       providerAvatar: provider.profileImage,
-      bookingId: null,
-    };
-
-    socket.emit("send_message", messageData);
-
-    // Optimistically add message to UI
-    const tempMessage = {
-      _id: Date.now(),
-      chatId: chat?._id,
-      senderId: user._id,
-      senderType: "user",
-      receiverId: provider._id,
-      message: newMessage,
-      messageType: "text",
-      createdAt: new Date(),
-      read: false,
-    };
-    setMessages((prev) => [...prev, tempMessage]);
-
-    setNewMessage("");
+    });
+    
     setSending(false);
   };
 

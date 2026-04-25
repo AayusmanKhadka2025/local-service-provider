@@ -88,6 +88,25 @@ const bookingSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  // Add to booking schema
+paymentStatus: {
+  type: String,
+  enum: ['pending', 'completed', 'failed', 'refunded'],
+  default: 'pending'
+},
+paymentId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'Payment',
+  default: null
+},
+paymentCompletedAt: {
+  type: Date,
+  default: null
+},
+paymentAmount: {
+  type: Number,
+  default: null
+},
   // Service tracking fields
   startTime: {
     type: Date,

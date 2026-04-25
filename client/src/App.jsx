@@ -13,6 +13,8 @@ import VerifyOTP from "./pages/VerifyOTP";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import GoogleAuthCallback from "./pages/GoogleAuthCallback";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailure from "./pages/PaymentFailure";
 
 function App() {
   return (
@@ -82,7 +84,9 @@ function App() {
 
         <Route path="/google-auth-callback" element={<GoogleAuthCallback />} />
 
-        
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+
+        <Route path="/payment-failure" element={<PaymentFailure />} />
       </Routes>
     </Router>
   );
