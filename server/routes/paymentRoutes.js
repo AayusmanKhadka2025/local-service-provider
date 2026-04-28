@@ -16,7 +16,6 @@ const {
 router.post('/initiate', protectUser, initiateEsewaPayment);
 router.get('/status/:bookingId', protectUser, getPaymentStatus);
 router.get('/user/payments', protectUser, getUserPayments);
-router.post('/simulate', protectUser, simulatePayment);
 
 // eSewa callback routes (public - no auth needed)
 // These MUST be GET methods as per eSewa documentation

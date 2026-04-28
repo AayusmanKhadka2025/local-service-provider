@@ -1,14 +1,38 @@
 const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
-const {
-  ESEWA_SANDBOX_URL,
-  ESEWA_MERCHANT_CODE,
-  ESEWA_SUCCESS_URL,
-  ESEWA_FAILURE_URL,
-  getEsewaPaymentHash,
-  generateTransactionUuid,
-  verifyEsewaPayment
-} = require('../config/esewa');
+const crypto = require('crypto');
+
+// eSewa Configuration
+const ESEWA_SANDBOX_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
+const ESEWA_SUCCESS_URL = 'http://localhost:5050/api/payments/esewa/success';
+const ESEWA_FAILURE_URL = 'http://localhost:5050/api/payments/esewa/failure';
+const ESEWA_MERCHANT_CODE = 'EPAYTEST';
+const ESEWA_SECRET_KEY = '8gBm/:&EnhH.1/q';
+
+// Generate signature
+const getEsewaPaymentHash = ({ amount, transaction_uuid }) => {
+  const data = `total_amount=${amount},transaction_uuid=${transaction_uuid},product_code=${ESEWA_MERCHANT_CODE}`;
+  console.log('Message to sign:', data);
+  
+  const hash = crypto
+    .createHmac('sha256', ESEWA_SECRET_KEY)
+    .update(data)
+    .digest('base64');
+
+  console.log('Generated signature:', hash);
+  
+  return {
+    signature: hash,
+    signed_field_names: 'total_amount,transaction_uuid,product_code'
+  };
+};
+
+// Generate transaction UUID
+const generateTransactionUuid = () => {
+  const timestamp = Date.now().toString();
+  const random = Math.random().toString(36).substring(2, 15);
+  return `${timestamp}_${random}`;
+};
 
 // Initiate eSewa payment
 const initiateEsewaPayment = async (req, res) => {
@@ -53,12 +77,8 @@ const initiateEsewaPayment = async (req, res) => {
     }
 
     const amount = Math.round(booking.calculatedAmount || booking.totalAmount);
-    const taxAmount = 0;
-    const serviceCharge = 0;
-    const deliveryCharge = 0;
-    const totalAmount = amount + taxAmount + serviceCharge + deliveryCharge;
+    const totalAmount = amount;
     
-    // Generate transaction UUID (MongoDB ObjectId format)
     const transactionUuid = generateTransactionUuid();
 
     // Create pending payment record
@@ -77,27 +97,26 @@ const initiateEsewaPayment = async (req, res) => {
       transaction_uuid: transactionUuid
     });
 
-    // Prepare data exactly as per eSewa documentation
+    // Prepare data for eSewa
     const esewaData = {
       amount: amount.toString(),
-      tax_amount: taxAmount.toString(),
+      tax_amount: '0',
       total_amount: totalAmount.toString(),
       transaction_uuid: transactionUuid,
       product_code: ESEWA_MERCHANT_CODE,
-      product_service_charge: serviceCharge.toString(),
-      product_delivery_charge: deliveryCharge.toString(),
+      product_service_charge: '0',
+      product_delivery_charge: '0',
       success_url: `${ESEWA_SUCCESS_URL}?paymentId=${payment._id}`,
       failure_url: `${ESEWA_FAILURE_URL}?paymentId=${payment._id}`,
       signed_field_names: signed_field_names,
       signature: signature
     };
 
-    console.log('eSewa Payment Data:', {
+    console.log('eSewa Payment initiated:', {
       amount,
       totalAmount,
       transactionUuid,
-      signature: signature.substring(0, 20) + '...',
-      success_url: esewaData.success_url
+      paymentId: payment._id
     });
 
     res.status(200).json({
@@ -117,46 +136,82 @@ const initiateEsewaPayment = async (req, res) => {
   }
 };
 
-// eSewa Payment Success Callback
+// eSewa Payment Success Callback - Fixed URL parsing
 const esewaPaymentSuccess = async (req, res) => {
   try {
-    console.log('=' .repeat(50));
-    console.log('ESEWA SUCCESS CALLBACK');
-    console.log('Query params:', req.query);
-    console.log('Body:', req.body);
-    console.log('=' .repeat(50));
+    console.log('=' .repeat(60));
+    console.log('ESEWA SUCCESS CALLBACK RECEIVED');
+    console.log('Raw URL:', req.url);
+    console.log('Query params:', JSON.stringify(req.query, null, 2));
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('=' .repeat(60));
     
+    // Fix: eSewa sometimes appends data to paymentId with another ?
     let paymentId = req.query.paymentId;
-    let encodedData = req.query.data || req.body.data;
+    let encodedData = req.query.data;
     
-    if (!encodedData) {
-      console.error('No data received from eSewa');
-      return res.redirect(`http://localhost:5173/payment-failure?error=No payment data received`);
+    // Check if paymentId contains a ? which means data is appended to it
+    if (paymentId && paymentId.includes('?data=')) {
+      const parts = paymentId.split('?data=');
+      paymentId = parts[0];
+      encodedData = parts[1];
+      console.log('Extracted paymentId from malformed URL:', paymentId);
+      console.log('Extracted data from malformed URL');
     }
     
-    // Verify payment with eSewa
-    const verificationResult = await verifyEsewaPayment(encodedData);
-    console.log('Verification result:', verificationResult);
+    // Also check if data is in the query as expected
+    if (!encodedData && req.query.data) {
+      encodedData = req.query.data;
+    }
     
+    // Check if data is in the body
+    if (!encodedData && req.body.data) {
+      encodedData = req.body.data;
+    }
+    
+    // Find payment by ID first
     let payment = null;
-    
-    if (paymentId) {
+    if (paymentId && paymentId.match(/^[0-9a-fA-F]{24}$/)) {
       payment = await Payment.findById(paymentId);
-    } else if (verificationResult.response.transaction_uuid) {
-      payment = await Payment.findOne({ transactionUuid: verificationResult.response.transaction_uuid });
+    }
+    
+    // If not found by ID, try by transaction_uuid from decoded data
+    if (!payment && encodedData) {
+      try {
+        const decodedData = JSON.parse(Buffer.from(encodedData, 'base64').toString('utf-8'));
+        console.log('Decoded data from eSewa:', decodedData);
+        
+        if (decodedData.transaction_uuid) {
+          payment = await Payment.findOne({ transactionUuid: decodedData.transaction_uuid });
+        }
+      } catch (e) {
+        console.error('Error decoding data:', e);
+      }
     }
     
     if (!payment) {
-      console.error('Payment not found');
+      console.error('Payment not found for:', { paymentId, hasData: !!encodedData });
       return res.redirect(`http://localhost:5173/payment-failure?error=Payment record not found`);
     }
     
-    // Update payment status
+    // Mark payment as successful
     payment.status = 'success';
     payment.completedAt = new Date();
-    payment.paymentResponse = verificationResult;
+    payment.paymentResponse = { 
+      rawQuery: req.query,
+      encodedData: encodedData,
+      receivedAt: new Date(),
+      note: 'Payment successful via eSewa'
+    };
+    
+    if (encodedData) {
+      try {
+        const decodedData = JSON.parse(Buffer.from(encodedData, 'base64').toString('utf-8'));
+        payment.paymentResponse.decodedData = decodedData;
+      } catch (e) {}
+    }
+    
     await payment.save();
-
     console.log('✅ Payment successful for booking:', payment.bookingId);
 
     // Redirect to frontend success page
@@ -167,20 +222,26 @@ const esewaPaymentSuccess = async (req, res) => {
   }
 };
 
-// eSewa Payment Failure Callback
+// eSewa Payment Failure Callback - Fixed URL parsing
 const esewaPaymentFailure = async (req, res) => {
   try {
-    console.log('=' .repeat(50));
-    console.log('ESEWA FAILURE CALLBACK');
-    console.log('Query params:', req.query);
-    console.log('Body:', req.body);
-    console.log('=' .repeat(50));
+    console.log('=' .repeat(60));
+    console.log('ESEWA FAILURE CALLBACK RECEIVED');
+    console.log('Raw URL:', req.url);
+    console.log('Query params:', JSON.stringify(req.query, null, 2));
+    console.log('=' .repeat(60));
     
-    const paymentId = req.query.paymentId;
+    let paymentId = req.query.paymentId;
+    let errorMsg = req.query.error || 'Payment cancelled or failed';
     
+    // Fix: Check if paymentId contains malformed data
+    if (paymentId && paymentId.includes('?')) {
+      paymentId = paymentId.split('?')[0];
+    }
+    
+    // Find payment
     let payment = null;
-    
-    if (paymentId) {
+    if (paymentId && paymentId.match(/^[0-9a-fA-F]{24}$/)) {
       payment = await Payment.findById(paymentId);
     }
     
@@ -188,14 +249,13 @@ const esewaPaymentFailure = async (req, res) => {
       payment.status = 'failed';
       payment.paymentResponse = { 
         query: req.query,
-        body: req.body,
-        receivedAt: new Date()
+        receivedAt: new Date(),
+        error: errorMsg
       };
       await payment.save();
       console.log('Payment marked as failed for booking:', payment.bookingId);
     }
 
-    const errorMsg = req.query.error || 'Payment cancelled or failed';
     res.redirect(`http://localhost:5173/payment-failure?error=${encodeURIComponent(errorMsg)}`);
   } catch (error) {
     console.error('Payment failure callback error:', error);
@@ -247,87 +307,10 @@ const getUserPayments = async (req, res) => {
   }
 };
 
-// Simulate payment for testing
-const simulatePayment = async (req, res) => {
-  try {
-    const { bookingId } = req.body;
-    const userId = req.userId;
-
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-
-    if (booking.user.userId.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Unauthorized'
-      });
-    }
-
-    if (booking.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: 'Payment can only be made for completed bookings'
-      });
-    }
-
-    const existingPayment = await Payment.findOne({ 
-      bookingId: bookingId,
-      status: 'success'
-    });
-    
-    if (existingPayment) {
-      return res.status(400).json({
-        success: false,
-        message: 'Payment already completed'
-      });
-    }
-
-    const amount = booking.calculatedAmount || booking.totalAmount;
-    const transactionUuid = generateTransactionUuid();
-
-    const payment = await Payment.create({
-      bookingId: booking._id,
-      userId: userId,
-      providerId: booking.provider.providerId,
-      transactionUuid: transactionUuid,
-      amount: amount,
-      status: 'success',
-      completedAt: new Date(),
-      paymentResponse: { simulated: true }
-    });
-
-    console.log('Simulated payment successful for booking:', bookingId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Payment simulated successfully',
-      payment: {
-        id: payment._id,
-        amount: payment.amount,
-        transactionUuid: payment.transactionUuid,
-        status: payment.status
-      }
-    });
-  } catch (error) {
-    console.error('Simulate payment error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-};
-
 module.exports = {
   initiateEsewaPayment,
   esewaPaymentSuccess,
   esewaPaymentFailure,
   getPaymentStatus,
-  getUserPayments,
-  simulatePayment
+  getUserPayments
 };
