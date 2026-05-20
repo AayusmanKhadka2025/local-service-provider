@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import ProviderChat from "./ProviderChat";
 import ProviderEarning from "./ProviderEarning";
+import ProviderSetting from "./ProviderSetting";
 
 const ProviderDashboard = () => {
   const navigate = useNavigate();
@@ -290,18 +291,24 @@ const ProviderDashboard = () => {
 
         if (response.data.success) {
           const bookingsData = response.data.bookings;
-          
+
           // Sort history bookings by date (newest first)
           const sortedCompleted = [...(bookingsData.completed || [])].sort(
-            (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+            (a, b) =>
+              new Date(b.completedAt || b.updatedAt || b.createdAt) -
+              new Date(a.completedAt || a.updatedAt || a.createdAt),
           );
           const sortedRejected = [...(bookingsData.rejected || [])].sort(
-            (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+            (a, b) =>
+              new Date(b.updatedAt || b.createdAt) -
+              new Date(a.updatedAt || a.createdAt),
           );
           const sortedCancelled = [...(bookingsData.cancelled || [])].sort(
-            (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+            (a, b) =>
+              new Date(b.updatedAt || b.createdAt) -
+              new Date(a.updatedAt || a.createdAt),
           );
-          
+
           setBookings({
             pending: bookingsData.pending || [],
             confirmed: bookingsData.confirmed || [],
@@ -453,18 +460,30 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        
+
         // Sort history bookings after update
-        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
-          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+        const sortedCompleted = [
+          ...(updatedBookings.data.bookings.completed || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.completedAt || b.updatedAt || b.createdAt) -
+            new Date(a.completedAt || a.updatedAt || a.createdAt),
         );
-        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedRejected = [
+          ...(updatedBookings.data.bookings.rejected || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedCancelled = [
+          ...(updatedBookings.data.bookings.cancelled || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        
+
         setBookings({
           pending: updatedBookings.data.bookings.pending || [],
           confirmed: updatedBookings.data.bookings.confirmed || [],
@@ -512,17 +531,29 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        
-        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
-          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+
+        const sortedCompleted = [
+          ...(updatedBookings.data.bookings.completed || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.completedAt || b.updatedAt || b.createdAt) -
+            new Date(a.completedAt || a.updatedAt || a.createdAt),
         );
-        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedRejected = [
+          ...(updatedBookings.data.bookings.rejected || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedCancelled = [
+          ...(updatedBookings.data.bookings.cancelled || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        
+
         setBookings({
           pending: updatedBookings.data.bookings.pending || [],
           confirmed: updatedBookings.data.bookings.confirmed || [],
@@ -559,17 +590,29 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        
-        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
-          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+
+        const sortedCompleted = [
+          ...(updatedBookings.data.bookings.completed || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.completedAt || b.updatedAt || b.createdAt) -
+            new Date(a.completedAt || a.updatedAt || a.createdAt),
         );
-        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedRejected = [
+          ...(updatedBookings.data.bookings.rejected || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
-          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        const sortedCancelled = [
+          ...(updatedBookings.data.bookings.cancelled || []),
+        ].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt) -
+            new Date(a.updatedAt || a.createdAt),
         );
-        
+
         setBookings({
           pending: updatedBookings.data.bookings.pending || [],
           confirmed: updatedBookings.data.bookings.confirmed || [],
@@ -1015,82 +1058,7 @@ const ProviderDashboard = () => {
         return <ProviderEarning />;
 
       case "profile":
-        return (
-          <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">
-              Profile Settings
-            </h2>
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                <div className="relative">
-                  <img
-                    src={provider.avatar}
-                    className="w-24 h-24 rounded-full border-4 border-blue-100 object-cover"
-                    alt={provider.fullName}
-                  />
-                  <button className="absolute bottom-0 right-0 bg-blue-600 p-2 rounded-full shadow-lg hover:bg-blue-700 transition">
-                    <Camera className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-                <div className="text-center sm:text-left">
-                  <h3 className="text-xl font-semibold">{provider.fullName}</h3>
-                  <p className="text-gray-500">{provider.role}</p>
-                  <div className="flex items-center justify-center sm:justify-start gap-1 mt-1">
-                    {renderStars(provider.rating)}
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ProfileField label="First Name" value={provider.firstName} />
-                <ProfileField label="Last Name" value={provider.lastName} />
-                <ProfileField label="Email" value={provider.email} />
-                <ProfileField label="Phone" value={provider.phone} />
-                <ProfileField
-                  label="Service Category"
-                  value={provider.category}
-                />
-                <ProfileField label="Experience" value={provider.experience} />
-                <ProfileField
-                  label="Hourly Rate"
-                  value={`Rs. ${provider.hourlyRate}/hr`}
-                />
-                <ProfileField
-                  label="Service Area"
-                  value={provider.serviceArea}
-                />
-                <ProfileField
-                  label="Address"
-                  value={`${provider.address}, ${provider.city}`}
-                />
-                <ProfileField
-                  label="Available Days"
-                  value={provider.availableDays?.join(", ")}
-                />
-              </div>
-              {provider.serviceTags?.length > 0 && (
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500 mb-2">Service Tags</p>
-                  <div className="flex flex-wrap gap-2">
-                    {provider.serviceTags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {provider.description && (
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500">About Me</p>
-                  <p className="text-gray-700 mt-1">{provider.description}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        );
+        return <ProviderSetting />;
 
       case "support":
         return (

@@ -329,8 +329,254 @@ const providerLogin = async (req, res) => {
   }
 };
 
+// Add these functions to your existing providerController.js
+
+// Get provider profile by email
+const getProviderProfile = async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    const provider = await Provider.findOne({ email: email.toLowerCase() })
+      .select('-password -documents');
+    
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Provider not found'
+      });
+    }
+    
+    // Format the response
+    const providerData = {
+      _id: provider._id,
+      firstName: provider.firstName,
+      lastName: provider.lastName,
+      email: provider.email,
+      phone: provider.phone,
+      category: provider.category,
+      experience: provider.experience,
+      description: provider.description,
+      availableDays: provider.availableDays,
+      serviceTags: provider.serviceTags || [],
+      address: provider.address,
+      city: provider.city,
+      hourlyRate: provider.hourlyRate,
+      serviceArea: provider.serviceArea,
+      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : null,
+      rating: provider.rating || 0,
+      totalReviews: provider.totalReviews || 0,
+      completedJobs: provider.completedJobs || 0,
+      isVerified: provider.isVerified,
+      createdAt: provider.createdAt
+    };
+    
+    res.status(200).json({
+      success: true,
+      provider: providerData
+    });
+  } catch (error) {
+    console.error('Get provider profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Update provider profile
+const updateProviderProfile = async (req, res) => {
+  try {
+    const providerId = req.providerId;
+    const {
+      firstName,
+      lastName,
+      phone,
+      experience,
+      description,
+      address,
+      city,
+      hourlyRate,
+      serviceArea,
+      availableDays,
+      serviceTags,
+      profileImage
+    } = req.body;
+    
+    // Find provider
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Provider not found'
+      });
+    }
+    
+    // Update fields
+    if (firstName !== undefined) provider.firstName = firstName;
+    if (lastName !== undefined) provider.lastName = lastName;
+    if (phone !== undefined) provider.phone = phone;
+    if (experience !== undefined) provider.experience = experience;
+    if (description !== undefined) provider.description = description;
+    if (address !== undefined) provider.address = address;
+    if (city !== undefined) provider.city = city;
+    if (hourlyRate !== undefined) provider.hourlyRate = parseFloat(hourlyRate);
+    if (serviceArea !== undefined) provider.serviceArea = serviceArea;
+    if (availableDays !== undefined) provider.availableDays = availableDays;
+    if (serviceTags !== undefined) provider.serviceTags = serviceTags;
+    
+    // Handle profile image URL (extract path from full URL)
+    if (profileImage !== undefined && profileImage !== provider.profileImage) {
+      if (profileImage && profileImage.startsWith('http://localhost:5050')) {
+        provider.profileImage = profileImage.replace('http://localhost:5050', '');
+      } else if (profileImage && !profileImage.startsWith('http')) {
+        provider.profileImage = profileImage;
+      }
+    }
+    
+    await provider.save();
+    
+    // Return updated provider data
+    const updatedProvider = {
+      _id: provider._id,
+      firstName: provider.firstName,
+      lastName: provider.lastName,
+      email: provider.email,
+      phone: provider.phone,
+      category: provider.category,
+      experience: provider.experience,
+      description: provider.description,
+      availableDays: provider.availableDays,
+      serviceTags: provider.serviceTags || [],
+      address: provider.address,
+      city: provider.city,
+      hourlyRate: provider.hourlyRate,
+      serviceArea: provider.serviceArea,
+      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : null,
+      rating: provider.rating,
+      totalReviews: provider.totalReviews
+    };
+    
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      provider: updatedProvider
+    });
+  } catch (error) {
+    console.error('Update provider profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Upload provider avatar
+const uploadProviderAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+    
+    const providerId = req.providerId;
+    const avatarPath = `/uploads/providers/${req.file.filename}`;
+    
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Provider not found'
+      });
+    }
+    
+    provider.profileImage = avatarPath;
+    await provider.save();
+    
+    const fullAvatarUrl = `http://localhost:5050${avatarPath}`;
+    
+    res.status(200).json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      avatarUrl: fullAvatarUrl
+    });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Change provider password
+const changeProviderPassword = async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    const providerId = req.providerId;
+    
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: 'Provider not found'
+      });
+    }
+    
+    // Verify email matches
+    if (provider.email !== email.toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+    }
+    
+    // Verify current password
+    const isPasswordValid = await provider.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+    
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters'
+      });
+    }
+    
+    // Update password
+    provider.password = newPassword;
+    await provider.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Make sure to export the new functions
 module.exports = {
   registerProvider,
   providerLogin,
-  getAllProviders, // Make sure this is exported
+  getAllProviders,
+  getProviderProfile,      // Add this
+  updateProviderProfile,   // Add this
+  uploadProviderAvatar,    // Add this
+  changeProviderPassword   // Add this
 };

@@ -2,10 +2,15 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { protectProvider } = require('../middleware/providerAuth');
 const {
   registerProvider,
   providerLogin,
-  getAllProviders // Add this import
+  getAllProviders,
+  getProviderProfile,
+  updateProviderProfile,
+  uploadProviderAvatar,
+  changeProviderPassword
 } = require('../controllers/providerController');
 
 // Configure multer for file uploads
@@ -21,16 +26,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|zip/;
+    const allowedTypes = /jpeg|jpg|png|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only images, PDF, and ZIP files are allowed'));
+      cb(new Error('Only image files are allowed'));
     }
   }
 });
@@ -43,6 +48,12 @@ router.post('/register', upload.fields([
 ]), registerProvider);
 
 router.post('/login', providerLogin);
-router.get('/all', getAllProviders); // Add this route
+router.get('/all', getAllProviders);
+
+// Protected routes (require authentication)
+router.get('/profile/:email', protectProvider, getProviderProfile);
+router.put('/profile', protectProvider, updateProviderProfile);
+router.post('/upload-avatar', protectProvider, upload.single('profileImage'), uploadProviderAvatar);
+router.put('/change-password', protectProvider, changeProviderPassword);
 
 module.exports = router;
