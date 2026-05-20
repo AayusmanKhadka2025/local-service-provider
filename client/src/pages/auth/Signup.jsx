@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Home, CheckCircle, XCircle } from "lucide-react";
 import axios from "axios";
-import signupImage from "../assets/auth-illustration.png";
+import signupImage from "../../assets/auth-illustration.png";
 
 const Signup = () => {
   const navigate = useNavigate();

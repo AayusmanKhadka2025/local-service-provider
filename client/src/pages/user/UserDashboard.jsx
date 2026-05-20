@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import ProfileSettings from "./ProfileSettings";
 import UserChat from "./UserChat";
-import PaymentButton from "../components/PaymentButton";
+import PaymentButton from "../../components/PaymentButton";
 
 const UserDashboard = () => {
   const navigate = useNavigate();

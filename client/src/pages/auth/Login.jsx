@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import axios from "axios";
 import { Home } from "lucide-react";
-import authImage from "../assets/auth-illustration.png";
+import authImage from "../../assets/auth-illustration.png";
 
 const Login = () => {
   const navigate = useNavigate();

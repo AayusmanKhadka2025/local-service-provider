@@ -1,20 +1,20 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import UserDashboard from "./pages/UserDashboard";
-import ProviderRegister from "./pages/ProviderRegister";
-import ProviderDashboard from "./pages/ProviderDashboard";
-import ServiceListing from "./pages/ServiceListing";
-import BookingPage from "./pages/BookingPage";
+import Login from "./pages/auth/Login";
+import Signup from "./pages/auth/Signup";
+import UserDashboard from "./pages/user/UserDashboard";
+import ProviderDashboard from "./pages/provider/ProviderDashboard";
+import ProviderRegister from "./pages/provider/ProviderRegister";
+import ServiceListing from "./pages/booking/ServiceListing";
+import BookingPage from "./pages/booking/BookingPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
-import VerifyOTP from "./pages/VerifyOTP";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import GoogleAuthCallback from "./pages/GoogleAuthCallback";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentFailure from "./pages/PaymentFailure";
+import VerifyOTP from "./pages/auth/VerifyOTP";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
+import GoogleAuthCallback from "./pages/auth/GoogleAuthCallback";
+import PaymentSuccess from "./pages/payment/PaymentSuccess";
+import PaymentFailure from "./pages/payment/PaymentFailure";
 
 function App() {
   return (

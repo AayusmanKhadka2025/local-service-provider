@@ -34,6 +34,7 @@ import {
   Menu,
 } from "lucide-react";
 import ProviderChat from "./ProviderChat";
+import ProviderEarning from "./ProviderEarning";
 
 const ProviderDashboard = () => {
   const navigate = useNavigate();
@@ -605,7 +606,6 @@ const ProviderDashboard = () => {
       value: provider.rating.toFixed(1),
       icon: Star,
       color: "yellow",
-      suffix: "⭐",
     },
   ];
 
@@ -943,36 +943,7 @@ const ProviderDashboard = () => {
         );
 
       case "earnings":
-        return (
-          <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">
-              Earnings Overview
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 md:p-6">
-                <p className="text-sm text-gray-600">Total Earnings</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-800 mt-2">
-                  Rs. 4,250
-                </p>
-              </div>
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 md:p-6">
-                <p className="text-sm text-gray-600">This Month</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-800 mt-2">
-                  Rs. 1,280
-                </p>
-              </div>
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 md:p-6">
-                <p className="text-sm text-gray-600">Average per Job</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-800 mt-2">
-                  Rs. 145
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Based on {bookings.completed.length} completed jobs
-                </p>
-              </div>
-            </div>
-          </div>
-        );
+        return <ProviderEarning />;
 
       case "profile":
         return (
