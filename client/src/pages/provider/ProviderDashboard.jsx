@@ -290,7 +290,26 @@ const ProviderDashboard = () => {
 
         if (response.data.success) {
           const bookingsData = response.data.bookings;
-          setBookings(bookingsData);
+          
+          // Sort history bookings by date (newest first)
+          const sortedCompleted = [...(bookingsData.completed || [])].sort(
+            (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+          );
+          const sortedRejected = [...(bookingsData.rejected || [])].sort(
+            (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+          );
+          const sortedCancelled = [...(bookingsData.cancelled || [])].sort(
+            (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+          );
+          
+          setBookings({
+            pending: bookingsData.pending || [],
+            confirmed: bookingsData.confirmed || [],
+            in_progress: bookingsData.in_progress || [],
+            completed: sortedCompleted,
+            rejected: sortedRejected,
+            cancelled: sortedCancelled,
+          });
 
           // Create notifications for pending bookings (new booking requests)
           const newNotifications = [];
@@ -434,7 +453,26 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        setBookings(updatedBookings.data.bookings);
+        
+        // Sort history bookings after update
+        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
+          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+        );
+        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        
+        setBookings({
+          pending: updatedBookings.data.bookings.pending || [],
+          confirmed: updatedBookings.data.bookings.confirmed || [],
+          in_progress: updatedBookings.data.bookings.in_progress || [],
+          completed: sortedCompleted,
+          rejected: sortedRejected,
+          cancelled: sortedCancelled,
+        });
 
         // DO NOT create notifications for accept/reject actions
         showToast(actionMessage, "success");
@@ -474,7 +512,25 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        setBookings(updatedBookings.data.bookings);
+        
+        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
+          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+        );
+        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        
+        setBookings({
+          pending: updatedBookings.data.bookings.pending || [],
+          confirmed: updatedBookings.data.bookings.confirmed || [],
+          in_progress: updatedBookings.data.bookings.in_progress || [],
+          completed: sortedCompleted,
+          rejected: sortedRejected,
+          cancelled: sortedCancelled,
+        });
         // DO NOT create notification for service start
         showToast("Service Started! ⏱️", "success");
       }
@@ -503,7 +559,25 @@ const ProviderDashboard = () => {
             headers: { Authorization: `Bearer ${token}` },
           },
         );
-        setBookings(updatedBookings.data.bookings);
+        
+        const sortedCompleted = [...(updatedBookings.data.bookings.completed || [])].sort(
+          (a, b) => new Date(b.completedAt || b.updatedAt || b.createdAt) - new Date(a.completedAt || a.updatedAt || a.createdAt)
+        );
+        const sortedRejected = [...(updatedBookings.data.bookings.rejected || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        const sortedCancelled = [...(updatedBookings.data.bookings.cancelled || [])].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        
+        setBookings({
+          pending: updatedBookings.data.bookings.pending || [],
+          confirmed: updatedBookings.data.bookings.confirmed || [],
+          in_progress: updatedBookings.data.bookings.in_progress || [],
+          completed: sortedCompleted,
+          rejected: sortedRejected,
+          cancelled: sortedCancelled,
+        });
         // DO NOT create notification for service completion
         showToast("Service Completed! 🎉", "success");
       }
@@ -791,7 +865,7 @@ const ProviderDashboard = () => {
               </div>
             )}
 
-            {/* Stats Grid */}
+            {/* Stats Grid with Hover Scale Effect */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
               {stats.map((stat) => {
                 const Icon = stat.icon;
@@ -805,10 +879,10 @@ const ProviderDashboard = () => {
                 return (
                   <div
                     key={stat.label}
-                    className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100"
+                    className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer group"
                   >
                     <div
-                      className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4`}
+                      className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4 transition-transform duration-300 group-hover:scale-110`}
                     >
                       <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
@@ -816,12 +890,7 @@ const ProviderDashboard = () => {
                       {stat.label}
                     </p>
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">
-                      {stat.value}{" "}
-                      {stat.suffix && (
-                        <span className="text-sm font-normal">
-                          {stat.suffix}
-                        </span>
-                      )}
+                      {stat.value}
                     </h2>
                     {stat.label === "Total Rating" && (
                       <div className="mt-2">{renderStars(provider.rating)}</div>
