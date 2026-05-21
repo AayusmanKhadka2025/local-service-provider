@@ -22,20 +22,20 @@ const getFullAvatarUrl = (avatarPath) => {
 const generateUserToken = (userId, email, fullName) => {
   // Make sure userId is a string and exists
   if (!userId) {
-    console.error('Cannot generate token: userId is missing');
+    console.error("Cannot generate token: userId is missing");
     return null;
   }
-  
+
   const userIdStr = userId.toString();
-  console.log('Generating token for userId:', userIdStr);
-  
+  console.log("Generating token for userId:", userIdStr);
+
   return jwt.sign(
-    { 
-      id: userIdStr,  // This is what the middleware looks for
-      userId: userIdStr,  // Backup field
-      email, 
-      fullName, 
-      role: "user" 
+    {
+      id: userIdStr, // This is what the middleware looks for
+      userId: userIdStr, // Backup field
+      email,
+      fullName,
+      role: "user",
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" },
@@ -49,64 +49,71 @@ const googleAuthSuccess = async (req, res, isNewUser = false) => {
   try {
     // Check if user data exists in the request
     const user = req.user;
-    
+
     if (!user) {
-      console.error('No user data in request');
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=Authentication failed`);
+      console.error("No user data in request");
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=Authentication failed`,
+      );
     }
 
-    console.log('Google auth success for user:', { 
-      id: user._id, 
-      email: user.email, 
+    console.log("Google auth success for user:", {
+      id: user._id,
+      email: user.email,
       isNewUser,
-      userIdType: typeof user._id
+      userIdType: typeof user._id,
     });
 
     // Make sure we have a valid user ID
     if (!user._id) {
-      console.error('User ID is missing');
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=User ID missing`);
+      console.error("User ID is missing");
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=User ID missing`,
+      );
     }
 
     // Generate token with the correct user ID
     const token = generateUserToken(user._id, user.email, user.fullName);
-    
-    console.log('Generated token for user:', user._id);
-    
+
+    console.log("Generated token for user:", user._id);
+
     const userWithoutPassword = {
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
-      phone: user.phone || '',
-      gender: user.gender || 'Male',
-      country: user.country || 'Nepal',
-      province: user.province || '',
-      city: user.city || '',
-      area: user.area || '',
-      landmark: user.landmark || '',
+      phone: user.phone || "",
+      gender: user.gender || "Male",
+      country: user.country || "Nepal",
+      province: user.province || "",
+      city: user.city || "",
+      area: user.area || "",
+      landmark: user.landmark || "",
       avatar: getFullAvatarUrl(user.avatar),
       createdAt: user.createdAt,
       isNewUser: isNewUser,
-      isGoogleAccount: user.isGoogleAccount || true
+      isGoogleAccount: user.isGoogleAccount || true,
     };
 
     // Encode user data for URL
     const encodedUser = encodeURIComponent(JSON.stringify(userWithoutPassword));
-    
+
     // Redirect to frontend with token and user data
     const redirectUrl = `${process.env.FRONTEND_URL}/google-auth-callback?token=${token}&user=${encodedUser}`;
-    console.log('Redirecting to frontend with token');
+    console.log("Redirecting to frontend with token");
     res.redirect(redirectUrl);
-    
   } catch (error) {
-    console.error('Google auth success error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=Google authentication failed`);
+    console.error("Google auth success error:", error);
+    res.redirect(
+      `${process.env.FRONTEND_URL}/login?error=Google authentication failed`,
+    );
   }
 };
 
 // Google Auth Failure Handler
 const googleAuthFailure = (req, res) => {
-  res.redirect(`${process.env.FRONTEND_URL}/login?error=Google authentication failed`);
+  res.redirect(
+    `${process.env.FRONTEND_URL}/login?error=Google authentication failed`,
+  );
 };
 
 // Password validation function
@@ -254,7 +261,7 @@ const verifyOTP = async (req, res) => {
       area: "Thamel",
       landmark: "Near Kathmandu Durbar Square",
       avatar: "",
-      isGoogleAccount: false
+      isGoogleAccount: false,
     });
 
     console.log("User created successfully:", user._id);
@@ -265,7 +272,8 @@ const verifyOTP = async (req, res) => {
     // Return success WITHOUT token (user must login manually)
     res.status(201).json({
       success: true,
-      message: "Email verified and account created successfully! Please login to continue.",
+      message:
+        "Email verified and account created successfully! Please login to continue.",
       email: user.email,
     });
   } catch (error) {
@@ -364,7 +372,8 @@ const forgotPassword = async (req, res) => {
       // For security, don't reveal that user doesn't exist
       return res.status(200).json({
         success: true,
-        message: "If an account exists with this email, you will receive a password reset link.",
+        message:
+          "If an account exists with this email, you will receive a password reset link.",
       });
     }
 
@@ -381,7 +390,10 @@ const forgotPassword = async (req, res) => {
 
     // Generate reset token
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     // Save token to database
     await PasswordReset.create({
@@ -393,7 +405,11 @@ const forgotPassword = async (req, res) => {
     const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password/${resetToken}`;
 
     // Send reset email
-    const emailSent = await sendPasswordResetEmail(email, user.fullName, resetUrl);
+    const emailSent = await sendPasswordResetEmail(
+      email,
+      user.fullName,
+      resetUrl,
+    );
 
     if (!emailSent) {
       return res.status(500).json({
@@ -527,7 +543,8 @@ const resetPassword = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Password reset successfully! Please login with your new password.",
+      message:
+        "Password reset successfully! Please login with your new password.",
     });
   } catch (error) {
     console.error("Reset password error:", error);
@@ -561,6 +578,20 @@ const loginUser = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Email and password are required",
+      });
+    }
+
+    // First check if email exists as a PROVIDER
+    const Provider = require("../models/Provider");
+    const existingProvider = await Provider.findOne({
+      email: email.toLowerCase(),
+    });
+
+    if (existingProvider) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "This email is registered as a Service Provider. Please login from the Provider Login page.",
       });
     }
 
@@ -630,8 +661,6 @@ const loginUser = async (req, res) => {
   }
 };
 
-
-
 module.exports = {
   registerUser,
   loginUser,
@@ -643,5 +672,4 @@ module.exports = {
   resetPassword,
   googleAuthSuccess,
   googleAuthFailure,
-  
 };

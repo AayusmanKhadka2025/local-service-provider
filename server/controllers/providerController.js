@@ -1,7 +1,15 @@
 const Provider = require("../models/Provider");
+const User = require("../models/User");
+const ProviderOTP = require("../models/ProviderOTP");
 const path = require("path");
 const fs = require("fs");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const {
+  generateOTP,
+  sendVerificationEmail,
+} = require("../services/emailService");
 
 // Ensure upload directories exist
 const uploadDir = path.join(__dirname, "../uploads/providers");
@@ -18,12 +26,257 @@ const generateProviderToken = (providerId, email) => {
   );
 };
 
+// Send OTP for provider registration
+const sendProviderOTP = async (req, res) => {
+  try {
+    const formData = req.body;
+    const { email, firstName, lastName } = formData;
+
+    console.log("Sending provider OTP to:", email);
+
+    // Validation
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    // Check if email is already registered as a USER
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This email is already registered as a customer. Please use a different email or login as customer.",
+      });
+    }
+
+    // Check if email is already registered as a PROVIDER (pending or verified)
+    const existingProvider = await Provider.findOne({
+      email: email.toLowerCase(),
+    });
+    if (existingProvider) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This email is already registered as a service provider. Please login instead.",
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+
+    // Store provider data temporarily with OTP
+    await ProviderOTP.create({
+      email: email.toLowerCase(),
+      otp,
+      providerData: formData,
+    });
+
+    // Send verification email
+    const fullName = `${firstName || ""} ${lastName || ""}`.trim();
+    const emailSent = await sendVerificationEmail(
+      email,
+      fullName || email,
+      otp,
+    );
+
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send verification email. Please try again.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Verification code sent to your email. Please check your inbox.",
+      email: email,
+    });
+  } catch (error) {
+    console.error("Send provider OTP error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Verify OTP and complete provider registration
+const verifyProviderOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    console.log("Verifying provider OTP for:", email);
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    // Find OTP record
+    const otpRecord = await ProviderOTP.findOne({
+      email: email.toLowerCase(),
+      otp,
+    });
+
+    if (!otpRecord) {
+      console.log("Invalid or expired OTP for:", email);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired verification code",
+      });
+    }
+
+    console.log("OTP found, creating provider account for:", email);
+
+    const providerData = otpRecord.providerData;
+
+    // Parse JSON fields
+    const parsedDays =
+      typeof providerData.availableDays === "string"
+        ? JSON.parse(providerData.availableDays)
+        : providerData.availableDays || [];
+
+    const parsedTags =
+      typeof providerData.serviceTags === "string"
+        ? JSON.parse(providerData.serviceTags)
+        : providerData.serviceTags || [];
+
+    // Handle file uploads (they should already be processed by multer)
+    let profileImagePath = "";
+    let governmentIdPath = "";
+    let portfolioPath = "";
+
+    // If files were uploaded via multer, they would be in req.files
+    // Since this is called after file upload, we need to handle it differently
+    // For now, we'll assume files are already processed in the registration flow
+
+    // Create provider account
+    const provider = await Provider.create({
+      firstName: providerData.firstName,
+      lastName: providerData.lastName,
+      email: email.toLowerCase(),
+      phone: providerData.phone,
+      password: providerData.password,
+      category: providerData.category,
+      experience: providerData.experience,
+      description: providerData.description,
+      availableDays: parsedDays,
+      serviceTags: parsedTags,
+      address: providerData.address,
+      city: providerData.city,
+      hourlyRate: parseFloat(providerData.hourlyRate),
+      serviceArea: providerData.serviceArea || "",
+      profileImage: providerData.profileImage || "",
+      documents: {
+        governmentId: providerData.governmentId || {},
+        portfolio: providerData.portfolio || {},
+      },
+      isVerified: false, // Requires admin approval
+      isActive: true,
+    });
+
+    console.log("Provider created successfully:", provider._id);
+
+    // Delete OTP record
+    await ProviderOTP.deleteOne({ _id: otpRecord._id });
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Email verified and provider account created successfully! Please wait for admin approval before logging in.",
+      email: provider.email,
+    });
+  } catch (error) {
+    console.error("Verify provider OTP error:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Provider already exists with this email",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Resend provider OTP
+const resendProviderOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    // Find existing OTP record
+    const otpRecord = await ProviderOTP.findOne({ email: email.toLowerCase() });
+
+    if (!otpRecord) {
+      return res.status(404).json({
+        success: false,
+        message: "No pending verification found. Please register again.",
+      });
+    }
+
+    // Generate new OTP
+    const newOTP = generateOTP();
+
+    // Update OTP
+    otpRecord.otp = newOTP;
+    otpRecord.createdAt = new Date();
+    await otpRecord.save();
+
+    // Send new verification email
+    const providerData = otpRecord.providerData;
+    const fullName =
+      `${providerData.firstName || ""} ${providerData.lastName || ""}`.trim();
+    const emailSent = await sendVerificationEmail(
+      email,
+      fullName || email,
+      newOTP,
+    );
+
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send verification email. Please try again.",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "New verification code sent to your email.",
+    });
+  } catch (error) {
+    console.error("Resend provider OTP error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 // Get All Providers (for service listing)
 const getAllProviders = async (req, res) => {
   try {
-    const providers = await Provider.find({ 
+    const providers = await Provider.find({
       isActive: true,
-      isVerified: true  // Only show verified providers
+      isVerified: true, // Only show verified providers
     })
       .select("-password -documents")
       .sort({ rating: -1, createdAt: -1 });
@@ -43,7 +296,9 @@ const getAllProviders = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : "",
+      profileImage: provider.profileImage
+        ? `http://localhost:5050${provider.profileImage}`
+        : "",
       rating: provider.rating || 0,
       totalReviews: provider.totalReviews || 0,
       completedJobs: provider.completedJobs || 0,
@@ -65,7 +320,7 @@ const getAllProviders = async (req, res) => {
   }
 };
 
-// Provider Registration
+// Provider Registration (Original - kept for reference but not used directly anymore)
 const registerProvider = async (req, res) => {
   try {
     const {
@@ -130,6 +385,16 @@ const registerProvider = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Passwords do not match",
+      });
+    }
+
+    // Check if email is already registered as a USER
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This email is already registered as a customer. Please use a different email.",
       });
     }
 
@@ -251,6 +516,18 @@ const providerLogin = async (req, res) => {
       });
     }
 
+    // First check if email exists as a USER
+    const User = require("../models/User");
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+
+    if (existingUser) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "This email is registered as a Customer. Please login from the Customer Login page.",
+      });
+    }
+
     const provider = await Provider.findOne({ email: email.toLowerCase() });
     if (!provider) {
       return res.status(401).json({
@@ -271,7 +548,8 @@ const providerLogin = async (req, res) => {
     if (!provider.isVerified) {
       return res.status(403).json({
         success: false,
-        message: "Your account is pending verification. Please wait for admin approval.",
+        message:
+          "Your account is pending verification. Please wait for admin approval.",
       });
     }
 
@@ -305,7 +583,9 @@ const providerLogin = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : "",
+      profileImage: provider.profileImage
+        ? `http://localhost:5050${provider.profileImage}`
+        : "",
       rating: provider.rating,
       totalReviews: provider.totalReviews,
       completedJobs: provider.completedJobs,
@@ -329,24 +609,22 @@ const providerLogin = async (req, res) => {
   }
 };
 
-// Add these functions to your existing providerController.js
-
 // Get provider profile by email
 const getProviderProfile = async (req, res) => {
   try {
     const { email } = req.params;
-    
-    const provider = await Provider.findOne({ email: email.toLowerCase() })
-      .select('-password -documents');
-    
+
+    const provider = await Provider.findOne({
+      email: email.toLowerCase(),
+    }).select("-password -documents");
+
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
-    // Format the response
+
     const providerData = {
       _id: provider._id,
       firstName: provider.firstName,
@@ -362,24 +640,25 @@ const getProviderProfile = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : null,
+      profileImage: provider.profileImage
+        ? `http://localhost:5050${provider.profileImage}`
+        : null,
       rating: provider.rating || 0,
       totalReviews: provider.totalReviews || 0,
-      completedJobs: provider.completedJobs || 0,
       isVerified: provider.isVerified,
-      createdAt: provider.createdAt
+      createdAt: provider.createdAt,
     };
-    
+
     res.status(200).json({
       success: true,
-      provider: providerData
+      provider: providerData,
     });
   } catch (error) {
-    console.error('Get provider profile error:', error);
+    console.error("Get provider profile error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -400,19 +679,17 @@ const updateProviderProfile = async (req, res) => {
       serviceArea,
       availableDays,
       serviceTags,
-      profileImage
+      profileImage,
     } = req.body;
-    
-    // Find provider
+
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
-    // Update fields
+
     if (firstName !== undefined) provider.firstName = firstName;
     if (lastName !== undefined) provider.lastName = lastName;
     if (phone !== undefined) provider.phone = phone;
@@ -424,19 +701,20 @@ const updateProviderProfile = async (req, res) => {
     if (serviceArea !== undefined) provider.serviceArea = serviceArea;
     if (availableDays !== undefined) provider.availableDays = availableDays;
     if (serviceTags !== undefined) provider.serviceTags = serviceTags;
-    
-    // Handle profile image URL (extract path from full URL)
+
     if (profileImage !== undefined && profileImage !== provider.profileImage) {
-      if (profileImage && profileImage.startsWith('http://localhost:5050')) {
-        provider.profileImage = profileImage.replace('http://localhost:5050', '');
-      } else if (profileImage && !profileImage.startsWith('http')) {
+      if (profileImage && profileImage.startsWith("http://localhost:5050")) {
+        provider.profileImage = profileImage.replace(
+          "http://localhost:5050",
+          "",
+        );
+      } else if (profileImage && !profileImage.startsWith("http")) {
         provider.profileImage = profileImage;
       }
     }
-    
+
     await provider.save();
-    
-    // Return updated provider data
+
     const updatedProvider = {
       _id: provider._id,
       firstName: provider.firstName,
@@ -452,22 +730,24 @@ const updateProviderProfile = async (req, res) => {
       city: provider.city,
       hourlyRate: provider.hourlyRate,
       serviceArea: provider.serviceArea,
-      profileImage: provider.profileImage ? `http://localhost:5050${provider.profileImage}` : null,
+      profileImage: provider.profileImage
+        ? `http://localhost:5050${provider.profileImage}`
+        : null,
       rating: provider.rating,
-      totalReviews: provider.totalReviews
+      totalReviews: provider.totalReviews,
     };
-    
+
     res.status(200).json({
       success: true,
-      message: 'Profile updated successfully',
-      provider: updatedProvider
+      message: "Profile updated successfully",
+      provider: updatedProvider,
     });
   } catch (error) {
-    console.error('Update provider profile error:', error);
+    console.error("Update provider profile error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -478,37 +758,37 @@ const uploadProviderAvatar = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded'
+        message: "No file uploaded",
       });
     }
-    
+
     const providerId = req.providerId;
     const avatarPath = `/uploads/providers/${req.file.filename}`;
-    
+
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
+
     provider.profileImage = avatarPath;
     await provider.save();
-    
+
     const fullAvatarUrl = `http://localhost:5050${avatarPath}`;
-    
+
     res.status(200).json({
       success: true,
-      message: 'Avatar uploaded successfully',
-      avatarUrl: fullAvatarUrl
+      message: "Avatar uploaded successfully",
+      avatarUrl: fullAvatarUrl,
     });
   } catch (error) {
-    console.error('Avatar upload error:', error);
+    console.error("Avatar upload error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
@@ -518,65 +798,63 @@ const changeProviderPassword = async (req, res) => {
   try {
     const { email, currentPassword, newPassword } = req.body;
     const providerId = req.providerId;
-    
+
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
         success: false,
-        message: 'Provider not found'
+        message: "Provider not found",
       });
     }
-    
-    // Verify email matches
+
     if (provider.email !== email.toLowerCase()) {
       return res.status(403).json({
         success: false,
-        message: 'Unauthorized'
+        message: "Unauthorized",
       });
     }
-    
-    // Verify current password
+
     const isPasswordValid = await provider.comparePassword(currentPassword);
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect'
+        message: "Current password is incorrect",
       });
     }
-    
-    // Validate new password length
+
     if (newPassword.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters'
+        message: "Password must be at least 6 characters",
       });
     }
-    
-    // Update password
+
     provider.password = newPassword;
     await provider.save();
-    
+
     res.status(200).json({
       success: true,
-      message: 'Password changed successfully'
+      message: "Password changed successfully",
     });
   } catch (error) {
-    console.error('Change password error:', error);
+    console.error("Change password error:", error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: "Server error",
+      error: error.message,
     });
   }
 };
 
-// Make sure to export the new functions
 module.exports = {
   registerProvider,
   providerLogin,
   getAllProviders,
-  getProviderProfile,      // Add this
-  updateProviderProfile,   // Add this
-  uploadProviderAvatar,    // Add this
-  changeProviderPassword   // Add this
+  sendProviderOTP,
+  verifyProviderOTP,
+  resendProviderOTP,
+  getProviderProfile,
+  updateProviderProfile,
+  uploadProviderAvatar,
+  changeProviderPassword,
 };

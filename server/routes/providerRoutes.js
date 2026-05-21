@@ -7,6 +7,9 @@ const {
   registerProvider,
   providerLogin,
   getAllProviders,
+  sendProviderOTP,
+  verifyProviderOTP,
+  resendProviderOTP,
   getProviderProfile,
   updateProviderProfile,
   uploadProviderAvatar,
@@ -26,21 +29,26 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|zip/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Only images, PDF, and ZIP files are allowed'));
     }
   }
 });
 
-// Public routes
+// OTP Routes (for email verification)
+router.post('/send-otp', sendProviderOTP);
+router.post('/verify-otp', verifyProviderOTP);
+router.post('/resend-otp', resendProviderOTP);
+
+// Original registration route (kept for compatibility)
 router.post('/register', upload.fields([
   { name: 'profileImage', maxCount: 1 },
   { name: 'governmentId', maxCount: 1 },
