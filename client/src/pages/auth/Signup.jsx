@@ -459,9 +459,14 @@ const Signup = () => {
               />
               <p>
                 I agree to the{" "}
-                <span className="text-blue-600 cursor-pointer">
+                <Link
+                  to="/terms"
+                  className="text-blue-600 hover:underline cursor-pointer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Terms and Conditions
-                </span>
+                </Link>
               </p>
             </div>
 
