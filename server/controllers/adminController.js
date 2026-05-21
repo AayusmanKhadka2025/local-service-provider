@@ -1,8 +1,9 @@
 const Admin = require("../models/Admin");
 const User = require("../models/User");
 const Provider = require("../models/Provider");
-const Booking = require("../models/Booking"); // Add this import
+const Booking = require("../models/Booking");
 const jwt = require("jsonwebtoken");
+const { sendVerificationCompleteEmail } = require("../services/emailService");
 
 // Generate JWT Token
 const generateToken = (adminId, username, role) => {
@@ -133,8 +134,8 @@ const getAllProviders = async (req, res) => {
       return `http://localhost:5050${imagePath}`;
     };
 
-    // Fetch reviews for each provider
-    const providersWithReviews = await Promise.all(
+    // Fetch reviews for each provider and ensure documents are included
+    const providersWithDetails = await Promise.all(
       providers.map(async (provider) => {
         try {
           const reviews = await Booking.find({
@@ -146,9 +147,24 @@ const getAllProviders = async (req, res) => {
             .sort({ createdAt: -1 })
             .limit(5);
 
+          // Ensure documents are properly formatted with full URLs
+          const documents = {
+            governmentId: provider.documents?.governmentId ? {
+              fileName: provider.documents.governmentId.fileName,
+              filePath: provider.documents.governmentId.filePath,
+              uploadedAt: provider.documents.governmentId.uploadedAt
+            } : null,
+            portfolio: provider.documents?.portfolio ? {
+              fileName: provider.documents.portfolio.fileName,
+              filePath: provider.documents.portfolio.filePath,
+              uploadedAt: provider.documents.portfolio.uploadedAt
+            } : null
+          };
+
           return {
             ...provider.toObject(),
             profileImage: getFullImageUrl(provider.profileImage),
+            documents: documents,
             reviews: reviews.map((review) => ({
               _id: review._id,
               userName: review.user.name,
@@ -159,12 +175,16 @@ const getAllProviders = async (req, res) => {
           };
         } catch (err) {
           console.error(
-            `Error fetching reviews for provider ${provider._id}:`,
+            `Error fetching details for provider ${provider._id}:`,
             err,
           );
           return {
             ...provider.toObject(),
             profileImage: getFullImageUrl(provider.profileImage),
+            documents: {
+              governmentId: null,
+              portfolio: null
+            },
             reviews: [],
           };
         }
@@ -173,7 +193,7 @@ const getAllProviders = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      providers: providersWithReviews,
+      providers: providersWithDetails,
     });
   } catch (error) {
     console.error("Get providers error:", error);
@@ -184,6 +204,7 @@ const getAllProviders = async (req, res) => {
     });
   }
 };
+
 
 // Get All Users
 const getAllUsers = async (req, res) => {
@@ -204,7 +225,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Verify Provider - Set isVerified to true
+// Verify Provider - Set isVerified to true and send email
 const verifyProvider = async (req, res) => {
   try {
     const { providerId } = req.params;
@@ -217,12 +238,33 @@ const verifyProvider = async (req, res) => {
       });
     }
 
+    // Check if already verified
+    if (provider.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: "Provider is already verified",
+      });
+    }
+
     provider.isVerified = true;
     await provider.save();
 
+    // Send verification complete email
+    const fullName = `${provider.firstName} ${provider.lastName}`;
+    const emailSent = await sendVerificationCompleteEmail(provider.email, fullName);
+
+    if (emailSent) {
+      console.log(`✅ Verification email sent to ${provider.email}`);
+    } else {
+      console.log(`⚠️ Failed to send verification email to ${provider.email}, but account is verified`);
+    }
+
     res.status(200).json({
       success: true,
-      message: "Provider verified successfully",
+      message: emailSent 
+        ? "Provider verified successfully. Email notification sent."
+        : "Provider verified successfully. (Email notification failed - please check email configuration)",
+      emailSent: emailSent,
     });
   } catch (error) {
     console.error("Verify provider error:", error);

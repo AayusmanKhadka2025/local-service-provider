@@ -30,6 +30,7 @@ import {
   ChevronUp,
   Menu,
   Play,
+  AlertTriangle,
 } from "lucide-react";
 import ProfileSettings from "./ProfileSettings";
 import UserChat from "./UserChat";
@@ -54,6 +55,8 @@ const UserDashboard = () => {
   const [reviewText, setReviewText] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
   const [loading, setLoading] = useState(true);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState(null);
 
   // Notification State
   const [showNotifications, setShowNotifications] = useState(false);
@@ -222,7 +225,14 @@ const UserDashboard = () => {
         );
 
         if (response.data.success) {
-          const bookingsData = response.data.bookings;
+          let bookingsData = response.data.bookings;
+          
+          // Sort history bookings by date (newest first)
+          bookingsData = bookingsData.map(booking => ({
+            ...booking,
+            sortDate: booking.completedAt || booking.updatedAt || booking.createdAt
+          }));
+          
           setBookings(bookingsData);
 
           // Load existing notifications from storage
@@ -471,16 +481,20 @@ const UserDashboard = () => {
     navigate("/service-listing");
   };
 
-  // Cancel booking (only if pending)
-  const handleCancelBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?"))
-      return;
+  // Cancel booking with confirmation modal
+  const openCancelConfirm = (bookingId) => {
+    setBookingToCancel(bookingId);
+    setShowCancelConfirm(true);
+  };
+
+  const confirmCancelBooking = async () => {
+    if (!bookingToCancel) return;
 
     try {
       const token = localStorage.getItem("token");
       const response = await axios.put(
         "http://localhost:5050/api/bookings/cancel",
-        { bookingId },
+        { bookingId: bookingToCancel },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
@@ -498,6 +512,9 @@ const UserDashboard = () => {
         error.response?.data?.message || "Failed to cancel booking",
         "error",
       );
+    } finally {
+      setShowCancelConfirm(false);
+      setBookingToCancel(null);
     }
   };
 
@@ -610,17 +627,23 @@ const UserDashboard = () => {
   // Check if section has more than 4 items
   const hasMoreThanFour = (bookingsList) => bookingsList.length > 4;
 
-  // Filter bookings by status
-  const upcomingBookingsList = bookings.filter(
-    (b) => b.status === "pending" || b.status === "confirmed",
-  );
+  // Filter and sort bookings by status
+  const upcomingBookingsList = bookings
+    .filter((b) => b.status === "pending" || b.status === "confirmed")
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  const historyBookingsList = bookings.filter(
-    (b) =>
-      b.status === "completed" ||
-      b.status === "rejected" ||
-      b.status === "cancelled",
-  );
+  const historyBookingsList = bookings
+    .filter(
+      (b) =>
+        b.status === "completed" ||
+        b.status === "rejected" ||
+        b.status === "cancelled",
+    )
+    .sort((a, b) => {
+      const dateA = a.completedAt || a.updatedAt || a.createdAt;
+      const dateB = b.completedAt || b.updatedAt || b.createdAt;
+      return new Date(dateB) - new Date(dateA);
+    });
 
   // Statistics
   const totalBookings = bookings.length;
@@ -748,7 +771,7 @@ const UserDashboard = () => {
                 key={booking._id}
                 booking={booking}
                 type="upcoming"
-                onCancel={() => handleCancelBooking(booking._id)}
+                onCancel={() => openCancelConfirm(booking._id)}
                 onProviderClick={() =>
                   handleProviderClick(booking.provider, booking)
                 }
@@ -899,7 +922,7 @@ const UserDashboard = () => {
   const openChat = (chat) => {
     const booking = bookings.find((b) => b._id === chat.bookingId);
     if (booking) {
-      setSelectedChatBooking(booking);
+      setSelectedChat(chat);
       setSelectedChatProvider({
         _id: chat.participants.provider.providerId,
         name: chat.participants.provider.name,
@@ -939,7 +962,7 @@ const UserDashboard = () => {
               </div>
             )}
 
-            {/* Stats Grid - Responsive */}
+            {/* Stats Grid with Hover Scale Effect */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
               {stats.map((stat) => {
                 const Icon = stat.icon;
@@ -951,10 +974,10 @@ const UserDashboard = () => {
                 return (
                   <div
                     key={stat.label}
-                    className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100"
+                    className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer group"
                   >
                     <div
-                      className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4`}
+                      className={`w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg mb-3 md:mb-4 transition-transform duration-300 group-hover:scale-110`}
                     >
                       <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
@@ -1127,6 +1150,57 @@ const UserDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold">Cancel Booking</h3>
+                  <p className="text-red-100 text-sm mt-1">This action cannot be undone</p>
+                </div>
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="p-1 hover:bg-white/20 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Are you sure?</p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Once cancelled, your booking will be permanently removed and cannot be restored.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
+                  No, Keep Booking
+                </button>
+                <button
+                  onClick={confirmCancelBooking}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Yes, Cancel Booking
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Provider Details Modal */}
       {showProviderModal && selectedProvider && (
         <ProviderModal
@@ -1190,9 +1264,7 @@ const UserDashboard = () => {
           />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-800 truncate">{user.name}</p>
-            <p className="text-xs text-blue-600 font-medium truncate">
-              {user.email}
-            </p>
+            <p className="text-xs text-blue-600 font-medium">Customer</p>
           </div>
         </div>
 
@@ -1258,9 +1330,7 @@ const UserDashboard = () => {
                   <p className="font-semibold text-gray-800 truncate">
                     {user.name}
                   </p>
-                  <p className="text-xs text-blue-600 font-medium truncate">
-                    {user.email}
-                  </p>
+                  <p className="text-xs text-blue-600 font-medium">Customer</p>
                 </div>
               </div>
 
@@ -1456,7 +1526,6 @@ const UserDashboard = () => {
   );
 };
 
-// Booking Card Component (updated with responsive design)
 // Booking Card Component (updated with payment button)
 const BookingCard = ({
   booking,
@@ -1471,7 +1540,7 @@ const BookingCard = ({
   getStatusColor,
   getStatusLabel,
   renderStars,
-  onPaymentComplete, // Add this prop
+  onPaymentComplete,
 }) => {
   const statusColor = getStatusColor(booking.status);
   const statusLabel = getStatusLabel(booking.status);
