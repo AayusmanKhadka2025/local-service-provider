@@ -16,6 +16,7 @@ import GoogleAuthCallback from "./pages/auth/GoogleAuthCallback";
 import PaymentSuccess from "./pages/payment/PaymentSuccess";
 import PaymentFailure from "./pages/payment/PaymentFailure";
 import VerifyProviderOTP from "./pages/auth/VerifyProviderOTP";
+import PendingVerification from "./pages/provider/PendingVerification";
 
 function App() {
   return (
@@ -90,6 +91,8 @@ function App() {
         <Route path="/payment-failure" element={<PaymentFailure />} />
 
         <Route path="/verify-provider-otp" element={<VerifyProviderOTP />} />
+
+        <Route path="/pending-verification" element={<PendingVerification />} />
       </Routes>
     </Router>
   );

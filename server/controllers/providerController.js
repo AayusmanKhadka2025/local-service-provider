@@ -528,7 +528,9 @@ const providerLogin = async (req, res) => {
       });
     }
 
+    // Then check as PROVIDER
     const provider = await Provider.findOne({ email: email.toLowerCase() });
+
     if (!provider) {
       return res.status(401).json({
         success: false,
@@ -544,12 +546,15 @@ const providerLogin = async (req, res) => {
       });
     }
 
-    // Check if provider is verified
+    // Check if provider is verified - CRITICAL: Return specific error for unverified
     if (!provider.isVerified) {
       return res.status(403).json({
         success: false,
-        message:
-          "Your account is pending verification. Please wait for admin approval.",
+        message: "UNVERIFIED_ACCOUNT",
+        requiresVerification: true,
+        email: provider.email,
+        messageForUser:
+          "Your account is yet to be verified. We will notify you through email once the verification is complete.",
       });
     }
 

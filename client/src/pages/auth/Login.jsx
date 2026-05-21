@@ -120,9 +120,26 @@ const Login = () => {
           return;
         }
       } catch (providerError) {
+        console.log("Provider login failed:", providerError.response?.data);
+
+        // Check if error is due to unverified account
+        if (
+          providerError.response?.status === 403 &&
+          providerError.response?.data?.requiresVerification
+        ) {
+          // Redirect to pending verification page
+          navigate("/pending-verification", {
+            state: {
+              email: providerError.response?.data?.email || formData.email,
+              message: providerError.response?.data?.messageForUser,
+            },
+          });
+          return;
+        }
+
         console.log("Provider login failed, trying admin login...");
       }
-
+      
       // If provider login fails, try admin login
       try {
         const adminResponse = await axios.post(

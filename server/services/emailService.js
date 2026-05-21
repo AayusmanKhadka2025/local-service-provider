@@ -240,8 +240,102 @@ const sendPasswordResetEmail = async (email, fullName, resetUrl) => {
   }
 };
 
+// Add this to your emailService.js if not already present
+const sendVerificationCompleteEmail = async (email, fullName) => {
+  const mailOptions = {
+    from: `"ServEase" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Your ServEase Provider Account Has Been Verified!",
+    html: `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Account Verified</title>
+</head>
+<body style="margin:0; padding:0; background:#f3f4f6; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f3f4f6; padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:500px; background:#ffffff; border-radius:16px; padding:40px;">
+          <tr>
+            <td style="text-align:center;">
+              <div style="width:60px; height:60px; background:#22c55e; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:20px;">
+                <span style="font-size:30px;">✅</span>
+              </div>
+              <h2 style="color:#1f2937; margin-bottom:10px;">Account Verified!</h2>
+              <p style="color:#4b5563; line-height:1.6; margin-bottom:20px;">
+                Dear <strong>${fullName}</strong>,
+              </p>
+              <p style="color:#4b5563; line-height:1.6; margin-bottom:20px;">
+                Congratulations! Your Service Provider account has been verified by the admin.
+                You can now log in to your account and start accepting bookings.
+              </p>
+              <a href="${process.env.FRONTEND_URL}/login" 
+                 style="display:inline-block; background:#2563eb; color:white; text-decoration:none; padding:12px 32px; border-radius:8px; font-weight:600; margin-top:10px;">
+                Login Now
+              </a>
+              <p style="color:#9ca3af; font-size:12px; margin-top:30px;">
+                Thank you for choosing ServEase!
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Verification complete email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error("❌ Verification email error:", error);
+    return false;
+  }
+};
+
+// Update the verifyProvider function in adminController.js
+const verifyProvider = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: "Provider not found",
+      });
+    }
+
+    provider.isVerified = true;
+    await provider.save();
+
+    // Send verification complete email
+    const fullName = `${provider.firstName} ${provider.lastName}`;
+    await sendVerificationCompleteEmail(provider.email, fullName);
+
+    res.status(200).json({
+      success: true,
+      message: "Provider verified successfully. Email notification sent.",
+    });
+  } catch (error) {
+    console.error("Verify provider error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   generateOTP,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendVerificationCompleteEmail, // Add this
 };
