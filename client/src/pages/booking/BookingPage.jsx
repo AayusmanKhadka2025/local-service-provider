@@ -134,7 +134,7 @@ const BookingChat = ({ provider, user, onClose }) => {
     const handleNewMessage = (message) => {
       if (message.chatId === chat?._id) {
         setMessages((prev) => {
-          const exists = prev.some(m => m._id === message._id);
+          const exists = prev.some((m) => m._id === message._id);
           if (exists) return prev;
           return [...prev, message];
         });
@@ -155,11 +155,11 @@ const BookingChat = ({ provider, user, onClose }) => {
   // Send message - NO optimistic update
   const sendMessage = async () => {
     if (!newMessage.trim() || sending || !chat?._id) return;
-    
+
     setSending(true);
     const messageContent = newMessage;
     setNewMessage("");
-    
+
     socket.emit("send_message", {
       chatId: chat._id,
       senderId: user._id,
@@ -172,7 +172,7 @@ const BookingChat = ({ provider, user, onClose }) => {
       providerName: `${provider.firstName} ${provider.lastName}`,
       providerAvatar: provider.profileImage,
     });
-    
+
     setSending(false);
   };
 
@@ -1888,7 +1888,7 @@ export default function BookingPage() {
                   <Phone className="w-4 h-4 text-blue-400" /> +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <MapPinIcon className="w-4 h-4 text-blue-400" /> San
+                  <MapPinIcon className="w-4 h-4 text-blue-400" />
                   Basantapur, Kathmandu
                 </li>
               </ul>

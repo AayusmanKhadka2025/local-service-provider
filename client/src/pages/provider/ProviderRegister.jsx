@@ -203,17 +203,12 @@ export default function ProviderRegister() {
     if (portfolioFile) formDataToSend.append("portfolio", portfolioFile);
 
     try {
-      // First, send OTP to verify email
+      // AFTER (sends multipart/form-data — files are included)
       const otpResponse = await axios.post(
         "http://localhost:5050/api/providers/send-otp",
+        formDataToSend, // already built above with all files attached
         {
-          email: formData.email,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          // Send all form data for storage
-          ...formData,
-          availableDays: selectedDays,
-          serviceTags: selectedTags,
+          headers: { "Content-Type": "multipart/form-data" },
         },
       );
 

@@ -67,11 +67,34 @@ const sendProviderOTP = async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
 
+    // ── NEW: extract uploaded file paths ──────────────────────────────────
+    const getFileMeta = (fieldName) => {
+      const file = req.files?.[fieldName]?.[0];
+      if (!file) return {};
+      return {
+        fileName: file.originalname,
+        filePath: `/uploads/providers/${file.filename}`,
+        uploadedAt: new Date(),
+      };
+    };
+
+    const profileImagePath = req.files?.profileImage?.[0]
+      ? `/uploads/providers/${req.files.profileImage[0].filename}`
+      : "";
+
+    // Merge file metadata into providerData before persisting
+    const providerDataToStore = {
+      ...formData,
+      profileImage: profileImagePath,
+      governmentId: getFileMeta("governmentId"),
+      portfolio: getFileMeta("portfolio"),
+    };
+
     // Store provider data temporarily with OTP
     await ProviderOTP.create({
       email: email.toLowerCase(),
       otp,
-      providerData: formData,
+      providerData: providerDataToStore,
     });
 
     // Send verification email
