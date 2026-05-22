@@ -1207,7 +1207,7 @@ const BookingCard = ({
           {type === "history" && canReview && (
             <button
               onClick={onReview}
-              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700 transition flex items-center gap-1 mx-auto"
+              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-yellow-500 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-yellow-600 transition flex items-center gap-1 mx-auto"
             >
               <Star className="w-3 h-3 md:w-4 md:h-4" />
               Review
