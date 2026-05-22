@@ -547,7 +547,7 @@ const providerLogin = async (req, res) => {
       return res.status(401).json({
         success: false,
         message:
-          "This email is registered as a Customer. Please login from the Customer Login page.",
+          "This email is registered as a Customer. Please login for the Customer.",
       });
     }
 

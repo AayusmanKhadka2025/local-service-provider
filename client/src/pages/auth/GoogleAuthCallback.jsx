@@ -13,7 +13,13 @@ const GoogleAuthCallback = () => {
 
     if (error) {
       console.error("Google auth error:", error);
-      navigate("/login", { state: { message: "Google authentication failed. Please try again.", type: "error" } });
+      // Show error message to user
+      navigate("/login", { 
+        state: { 
+          message: decodeURIComponent(error), 
+          type: "error" 
+        } 
+      });
       return;
     }
 
@@ -21,15 +27,12 @@ const GoogleAuthCallback = () => {
       try {
         const user = JSON.parse(decodeURIComponent(userData));
         
-        // Store user data and token with correct format
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem("token", token);
         localStorage.setItem("userType", "user");
         
-        // Also store user id separately for debugging
         console.log("Google user stored:", { userId: user._id, email: user.email });
         
-        // Check if user is new for welcome message
         const isNewUser = user.isNewUser;
         
         if (isNewUser) {
@@ -43,10 +46,14 @@ const GoogleAuthCallback = () => {
         }
       } catch (error) {
         console.error("Error parsing user data:", error);
-        navigate("/login", { state: { message: "Authentication failed. Please try again.", type: "error" } });
+        navigate("/login", { 
+          state: { message: "Authentication failed. Please try again.", type: "error" } 
+        });
       }
     } else {
-      navigate("/login", { state: { message: "Authentication failed. Please try again.", type: "error" } });
+      navigate("/login", { 
+        state: { message: "Authentication failed. Please try again.", type: "error" } 
+      });
     }
   }, [location, navigate]);
 

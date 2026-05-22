@@ -42,16 +42,31 @@ const generateUserToken = (userId, email, fullName) => {
   );
 };
 
-// Google Auth Success Handler
-// Google Auth Success Handler
-// Google Auth Success Handler
+// Update the googleAuthSuccess function
 const googleAuthSuccess = async (req, res, isNewUser = false) => {
   try {
-    // Check if user data exists in the request
+    // Check if there was an error in the Google strategy
+    if (req.query.error) {
+      console.error("Google auth error:", req.query.error);
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(req.query.error)}`,
+      );
+    }
+
     const user = req.user;
 
+    // Check if user is null (provider conflict case)
     if (!user) {
-      console.error("No user data in request");
+      // Get the error message from the strategy
+      const errorMsg = req.authInfo?.message || "Authentication failed";
+      const isProvider = req.authInfo?.isProvider || false;
+
+      if (isProvider) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(errorMsg)}`,
+        );
+      }
+
       return res.redirect(
         `${process.env.FRONTEND_URL}/login?error=Authentication failed`,
       );
@@ -64,7 +79,6 @@ const googleAuthSuccess = async (req, res, isNewUser = false) => {
       userIdType: typeof user._id,
     });
 
-    // Make sure we have a valid user ID
     if (!user._id) {
       console.error("User ID is missing");
       return res.redirect(
@@ -72,7 +86,6 @@ const googleAuthSuccess = async (req, res, isNewUser = false) => {
       );
     }
 
-    // Generate token with the correct user ID
     const token = generateUserToken(user._id, user.email, user.fullName);
 
     console.log("Generated token for user:", user._id);
@@ -94,10 +107,8 @@ const googleAuthSuccess = async (req, res, isNewUser = false) => {
       isGoogleAccount: user.isGoogleAccount || true,
     };
 
-    // Encode user data for URL
     const encodedUser = encodeURIComponent(JSON.stringify(userWithoutPassword));
 
-    // Redirect to frontend with token and user data
     const redirectUrl = `${process.env.FRONTEND_URL}/google-auth-callback?token=${token}&user=${encodedUser}`;
     console.log("Redirecting to frontend with token");
     res.redirect(redirectUrl);
@@ -172,8 +183,19 @@ const sendOTP = async (req, res) => {
       });
     }
 
+    // CRITICAL: Check if email is already registered as a PROVIDER
+    const Provider = require("../models/Provider");
+    const existingProvider = await Provider.findOne({ email: email.toLowerCase() });
+    
+    if (existingProvider) {
+      return res.status(409).json({
+        success: false,
+        message: "This email is already registered as a Service Provider. Please login as provider.",
+      });
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(409).json({
         success: false,
@@ -190,7 +212,7 @@ const sendOTP = async (req, res) => {
 
     // Store OTP and user data temporarily
     await OTP.create({
-      email,
+      email: email.toLowerCase(),
       otp,
       fullName,
       password: hashedPassword,
@@ -591,7 +613,7 @@ const loginUser = async (req, res) => {
       return res.status(401).json({
         success: false,
         message:
-          "This email is registered as a Service Provider. Please login from the Provider Login page.",
+          "This email is registered as a Service Provider. Please login for the Provider.",
       });
     }
 

@@ -1,6 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
+const Provider = require('../models/Provider');
 const jwt = require('jsonwebtoken');
 
 // Generate JWT Token for users
@@ -29,7 +30,6 @@ passport.use(new GoogleStrategy({
   async (req, accessToken, refreshToken, profile, done) => {
     try {
       console.log('Google profile received:', profile.id);
-      console.log('Profile data:', JSON.stringify(profile, null, 2));
       
       const { id, displayName, emails, photos } = profile;
       const email = emails && emails[0] ? emails[0].value : null;
@@ -42,15 +42,27 @@ passport.use(new GoogleStrategy({
       const fullName = displayName;
       const avatar = photos && photos[0] ? photos[0].value : '';
       
-      console.log('Processing user:', email);
+      console.log('Processing Google auth for email:', email);
+      
+      // CRITICAL: Check if email is already registered as a PROVIDER
+      const existingProvider = await Provider.findOne({ email: email.toLowerCase() });
+      
+      // If email exists as a provider, block access regardless of intent
+      if (existingProvider) {
+        console.log('Blocked: Email already registered as provider:', email);
+        return done(null, false, { 
+          message: 'This email is already registered as a Service Provider. Please use the provider login.',
+          isProvider: true 
+        });
+      }
       
       // Check if user exists
       let user = await User.findOne({ email: email.toLowerCase() });
       let isNewUser = false;
       
       if (!user) {
+        // Create new user only if no provider exists with this email
         console.log('Creating new user for:', email);
-        // Create new user for signup
         user = await User.create({
           fullName,
           email: email.toLowerCase(),
@@ -81,11 +93,8 @@ passport.use(new GoogleStrategy({
         }
       }
       
-      // Return the user object with _id properly set
       const userObject = user.toObject();
       userObject.isNewUser = isNewUser;
-      
-      console.log('Returning user object with ID:', userObject._id);
       
       return done(null, userObject);
       
