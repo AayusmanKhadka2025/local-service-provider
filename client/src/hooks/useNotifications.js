@@ -78,6 +78,8 @@ export const useNotifications = (userId) => {
 
   // Fetch and sync notifications from bookings
   const syncNotificationsFromBookings = useCallback(async (bookings) => {
+    if (!bookings || bookings.length === 0) return;
+    
     const existingNotifications = JSON.parse(localStorage.getItem('user_notifications') || '[]');
     const existingIds = new Set(existingNotifications.map((n) => n.id));
     const newNotifications = [];
@@ -160,9 +162,6 @@ export const useNotifications = (userId) => {
         return updated;
       });
       setUnreadCount((prev) => prev + newNotifications.filter((n) => !n.read).length);
-    } else {
-      setNotifications(existingNotifications);
-      setUnreadCount(existingNotifications.filter((n) => !n.read).length);
     }
   }, [saveNotificationsToStorage]);
 
@@ -179,6 +178,7 @@ export const useNotifications = (userId) => {
     });
 
     newSocket.on('new_notification', (notification) => {
+      console.log('Received new notification:', notification);
       addNotification(notification);
     });
 

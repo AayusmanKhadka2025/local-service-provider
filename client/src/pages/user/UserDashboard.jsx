@@ -36,6 +36,7 @@ import ProfileSettings from "./ProfileSettings";
 import UserChat from "./UserChat";
 import PaymentButton from "../../components/PaymentButton";
 import NotificationBell from "../../components/NotificationBell";
+import { useNotifications } from "../../hooks/useNotifications";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -50,7 +51,8 @@ const UserDashboard = () => {
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const [selectedBookingForReview, setSelectedBookingForReview] =
+    useState(null);
   const [ratingValue, setRatingValue] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
@@ -119,17 +121,18 @@ const UserDashboard = () => {
           "http://localhost:5050/api/bookings/user",
           {
             headers: { Authorization: `Bearer ${token}` },
-          }
+          },
         );
 
         if (response.data.success) {
           let bookingsData = response.data.bookings;
-          
-          bookingsData = bookingsData.map(booking => ({
+
+          bookingsData = bookingsData.map((booking) => ({
             ...booking,
-            sortDate: booking.completedAt || booking.updatedAt || booking.createdAt
+            sortDate:
+              booking.completedAt || booking.updatedAt || booking.createdAt,
           }));
-          
+
           setBookings(bookingsData);
         }
       } catch (error) {
@@ -142,6 +145,14 @@ const UserDashboard = () => {
 
     fetchBookings();
   }, []);
+
+  const { syncNotificationsFromBookings } = useNotifications(user?._id);
+
+  useEffect(() => {
+    if (bookings.length > 0) {
+      syncNotificationsFromBookings(bookings);
+    }
+  }, [bookings, syncNotificationsFromBookings]);
 
   // Handle profile update
   const handleProfileUpdate = (updatedUser) => {
@@ -174,13 +185,13 @@ const UserDashboard = () => {
       const response = await axios.put(
         "http://localhost:5050/api/bookings/cancel",
         { bookingId: bookingToCancel },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (response.data.success) {
         const updatedBookings = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         setBookings(updatedBookings.data.bookings);
         showToast("Booking cancelled successfully", "success");
@@ -189,7 +200,7 @@ const UserDashboard = () => {
       console.error("Error cancelling booking:", error);
       showToast(
         error.response?.data?.message || "Failed to cancel booking",
-        "error"
+        "error",
       );
     } finally {
       setShowCancelConfirm(false);
@@ -228,26 +239,26 @@ const UserDashboard = () => {
           rating: ratingValue,
           review: reviewText,
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       if (response.data.success) {
         const updatedBookings = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         setBookings(updatedBookings.data.bookings);
         setShowReviewModal(false);
         showToast(
           "Review submitted successfully! Thank you for your feedback.",
-          "success"
+          "success",
         );
       }
     } catch (error) {
       console.error("Error submitting review:", error);
       showToast(
         error.response?.data?.message || "Failed to submit review",
-        "error"
+        "error",
       );
     }
   };
@@ -316,7 +327,7 @@ const UserDashboard = () => {
       (b) =>
         b.status === "completed" ||
         b.status === "rejected" ||
-        b.status === "cancelled"
+        b.status === "cancelled",
     )
     .sort((a, b) => {
       const dateA = a.completedAt || a.updatedAt || a.createdAt;
@@ -327,7 +338,9 @@ const UserDashboard = () => {
   // Statistics
   const totalBookings = bookings.length;
   const upcomingCount = upcomingBookingsList.length;
-  const completedCount = bookings.filter((b) => b.status === "completed").length;
+  const completedCount = bookings.filter(
+    (b) => b.status === "completed",
+  ).length;
 
   const stats = [
     {
@@ -391,14 +404,19 @@ const UserDashboard = () => {
   // Render Upcoming Bookings Section
   const renderUpcomingSection = () => {
     const isExpanded = expandedSections.upcoming;
-    const visibleBookings = getVisibleBookings(upcomingBookingsList, isExpanded);
+    const visibleBookings = getVisibleBookings(
+      upcomingBookingsList,
+      isExpanded,
+    );
     const showViewAll = hasMoreThanFour(upcomingBookingsList);
     const isEmpty = upcomingBookingsList.length === 0;
 
     return (
       <section className="mb-10">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">Upcoming Bookings</h2>
+          <h2 className="text-lg font-semibold text-gray-800">
+            Upcoming Bookings
+          </h2>
           {showViewAll && (
             <button
               onClick={() => toggleSection("upcoming")}
@@ -423,8 +441,12 @@ const UserDashboard = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Briefcase className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-md font-medium text-gray-700 mb-1">No upcoming bookings</h3>
-            <p className="text-sm text-gray-500">When you book a service, it will appear here.</p>
+            <h3 className="text-md font-medium text-gray-700 mb-1">
+              No upcoming bookings
+            </h3>
+            <p className="text-sm text-gray-500">
+              When you book a service, it will appear here.
+            </p>
             <button
               onClick={handleNewBookingClick}
               className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -440,7 +462,9 @@ const UserDashboard = () => {
                 booking={booking}
                 type="upcoming"
                 onCancel={() => openCancelConfirm(booking._id)}
-                onProviderClick={() => handleProviderClick(booking.provider, booking)}
+                onProviderClick={() =>
+                  handleProviderClick(booking.provider, booking)
+                }
                 getProviderImage={getProviderImage}
                 formatDate={formatDate}
                 formatTime={formatTime}
@@ -464,12 +488,15 @@ const UserDashboard = () => {
     const isEmpty = historyBookingsList.length === 0;
 
     const handlePaymentComplete = async (payment) => {
-      showToast(`Payment of Rs. ${payment.amount} completed successfully!`, "success");
+      showToast(
+        `Payment of Rs. ${payment.amount} completed successfully!`,
+        "success",
+      );
       try {
         const token = localStorage.getItem("token");
         const response = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (response.data.success) {
           setBookings(response.data.bookings);
@@ -482,7 +509,9 @@ const UserDashboard = () => {
     return (
       <section className="mb-10">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">Recent Booking History</h2>
+          <h2 className="text-lg font-semibold text-gray-800">
+            Recent Booking History
+          </h2>
           {showViewAll && (
             <button
               onClick={() => toggleSection("history")}
@@ -507,8 +536,12 @@ const UserDashboard = () => {
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Briefcase className="w-8 h-8 text-gray-400" />
             </div>
-            <h3 className="text-md font-medium text-gray-700 mb-1">No booking history</h3>
-            <p className="text-sm text-gray-500">Completed, rejected, or cancelled bookings will appear here.</p>
+            <h3 className="text-md font-medium text-gray-700 mb-1">
+              No booking history
+            </h3>
+            <p className="text-sm text-gray-500">
+              Completed, rejected, or cancelled bookings will appear here.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -518,7 +551,9 @@ const UserDashboard = () => {
                 booking={booking}
                 type="history"
                 onReview={() => handleReviewClick(booking)}
-                onProviderClick={() => handleProviderClick(booking.provider, booking)}
+                onProviderClick={() =>
+                  handleProviderClick(booking.provider, booking)
+                }
                 getProviderImage={getProviderImage}
                 formatDate={formatDate}
                 formatTime={formatTime}
@@ -549,7 +584,7 @@ const UserDashboard = () => {
       const token = localStorage.getItem("token");
       const response = await axios.get(
         "http://localhost:5050/api/chat/user/chats",
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       if (response.data.success) {
         setUserChats(response.data.chats);
@@ -587,7 +622,9 @@ const UserDashboard = () => {
                   ) : (
                     <AlertCircle className="w-5 h-5 text-red-600" />
                   )}
-                  <p className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}>
+                  <p
+                    className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}
+                  >
                     {toast.message}
                   </p>
                 </div>
@@ -613,8 +650,12 @@ const UserDashboard = () => {
                     >
                       <Icon className="w-5 h-5 md:w-6 md:h-6 text-white" />
                     </div>
-                    <p className="text-xs md:text-sm text-gray-500">{stat.label}</p>
-                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">{stat.value}</h2>
+                    <p className="text-xs md:text-sm text-gray-500">
+                      {stat.label}
+                    </p>
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">
+                      {stat.value}
+                    </h2>
                   </div>
                 );
               })}
@@ -633,18 +674,23 @@ const UserDashboard = () => {
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden h-[calc(100vh-200px)]">
             {showChat ? (
               <UserChat
-                booking={selectedChat?.bookingId ? { _id: selectedChat.bookingId } : {}}
+                booking={
+                  selectedChat?.bookingId ? { _id: selectedChat.bookingId } : {}
+                }
                 provider={{
                   _id: selectedChat?.participants?.provider?.providerId,
                   name: selectedChat?.participants?.provider?.name,
                   avatar: selectedChat?.participants?.provider?.avatar,
-                  category: selectedChatProvider?.category || "Service Provider",
+                  category:
+                    selectedChatProvider?.category || "Service Provider",
                 }}
                 onClose={() => setShowChat(false)}
               />
             ) : (
               <div className="p-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Messages</h2>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">
+                  Messages
+                </h2>
                 {loadingChats ? (
                   <div className="flex justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -653,12 +699,17 @@ const UserDashboard = () => {
                   <div className="text-center py-12">
                     <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">No messages yet</p>
-                    <p className="text-sm text-gray-400 mt-1">When you message providers, conversations will appear here.</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      When you message providers, conversations will appear
+                      here.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {userChats.map((chat) => {
-                      const booking = bookings.find((b) => b._id === chat.bookingId);
+                      const booking = bookings.find(
+                        (b) => b._id === chat.bookingId,
+                      );
                       return (
                         <div
                           key={chat._id}
@@ -668,7 +719,9 @@ const UserDashboard = () => {
                               _id: chat.participants.provider.providerId,
                               name: chat.participants.provider.name,
                               avatar: chat.participants.provider.avatar,
-                              category: booking?.provider?.category || "Service Provider",
+                              category:
+                                booking?.provider?.category ||
+                                "Service Provider",
                             });
                             setShowChat(true);
                           }}
@@ -688,10 +741,14 @@ const UserDashboard = () => {
                                 {chat.participants.provider.name}
                               </h3>
                               <span className="text-xs text-gray-400">
-                                {new Date(chat.lastMessageTime).toLocaleDateString()}
+                                {new Date(
+                                  chat.lastMessageTime,
+                                ).toLocaleDateString()}
                               </span>
                             </div>
-                            <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
+                            <p className="text-sm text-gray-500 truncate">
+                              {chat.lastMessage}
+                            </p>
                           </div>
                           {chat.unreadCount > 0 && (
                             <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
@@ -714,18 +771,30 @@ const UserDashboard = () => {
       case "support":
         return (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 md:p-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">Help & Support</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">
+              Help & Support
+            </h2>
             <div className="space-y-6">
               <div className="border-b pb-6">
-                <h3 className="font-semibold text-gray-800 mb-4">Frequently Asked Questions</h3>
+                <h3 className="font-semibold text-gray-800 mb-4">
+                  Frequently Asked Questions
+                </h3>
                 <ul className="space-y-3">
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• How do I book a service?</li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• What is your cancellation policy?</li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">• How are service providers verified?</li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • How do I book a service?
+                  </li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • What is your cancellation policy?
+                  </li>
+                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
+                    • How are service providers verified?
+                  </li>
                 </ul>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800 mb-4">Contact Support</h3>
+                <h3 className="font-semibold text-gray-800 mb-4">
+                  Contact Support
+                </h3>
                 <button className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition">
                   Contact Support Team
                 </button>
@@ -757,9 +826,14 @@ const UserDashboard = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-xl font-bold">Cancel Booking</h3>
-                  <p className="text-red-100 text-sm mt-1">This action cannot be undone</p>
+                  <p className="text-red-100 text-sm mt-1">
+                    This action cannot be undone
+                  </p>
                 </div>
-                <button onClick={() => setShowCancelConfirm(false)} className="p-1 hover:bg-white/20 rounded-lg transition">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="p-1 hover:bg-white/20 rounded-lg transition"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -769,18 +843,27 @@ const UserDashboard = () => {
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-yellow-800">Are you sure?</p>
+                    <p className="text-sm font-medium text-yellow-800">
+                      Are you sure?
+                    </p>
                     <p className="text-xs text-yellow-700 mt-1">
-                      Once cancelled, your booking will be permanently removed and cannot be restored.
+                      Once cancelled, your booking will be permanently removed
+                      and cannot be restored.
                     </p>
                   </div>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowCancelConfirm(false)} className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
                   No, Keep Booking
                 </button>
-                <button onClick={confirmCancelBooking} className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition flex items-center justify-center gap-2">
+                <button
+                  onClick={confirmCancelBooking}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition flex items-center justify-center gap-2"
+                >
                   <XCircle className="w-4 h-4" />
                   Yes, Cancel Booking
                 </button>
@@ -822,8 +905,15 @@ const UserDashboard = () => {
 
       {/* Mobile Menu Button */}
       <div className="md:hidden fixed top-4 left-4 z-50">
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 bg-white rounded-xl shadow-lg border border-gray-200">
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 bg-white rounded-xl shadow-lg border border-gray-200"
+        >
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </button>
       </div>
 
@@ -833,11 +923,17 @@ const UserDashboard = () => {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
             <Home className="w-5 h-5 text-white" />
           </div>
-          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h2>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+            ServEase
+          </h2>
         </div>
 
         <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
-          <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" alt={user.name} />
+          <img
+            src={user.avatar}
+            className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
+            alt={user.name}
+          />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-800 truncate">{user.name}</p>
             <p className="text-xs text-blue-600 font-medium">Customer</p>
@@ -857,15 +953,22 @@ const UserDashboard = () => {
                     : "hover:bg-gray-100 text-gray-700"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-gray-600"}`} />
+                <Icon
+                  className={`w-5 h-5 ${activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-gray-600"}`}
+                />
                 <span className="font-medium">{item.label}</span>
-                {activeTab === item.id && <ChevronRight className="w-4 h-4 ml-auto" />}
+                {activeTab === item.id && (
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                )}
               </button>
             );
           })}
         </nav>
 
-        <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl transition">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl transition"
+        >
           <LogOut className="w-5 h-5" />
           <span className="font-medium">Log Out</span>
         </button>
@@ -874,19 +977,30 @@ const UserDashboard = () => {
       {/* Mobile Sidebar */}
       {mobileMenuOpen && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
           <aside className="fixed top-0 left-0 w-72 bg-white h-full z-40 shadow-xl md:hidden overflow-y-auto">
             <div className="flex flex-col h-full p-6">
               <div className="flex items-center gap-2 mb-8">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-400 rounded-lg flex items-center justify-center">
                   <Home className="w-5 h-5 text-white" />
                 </div>
-                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h2>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                  ServEase
+                </h2>
               </div>
               <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
-                <img src={user.avatar} className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover" alt={user.name} />
+                <img
+                  src={user.avatar}
+                  className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
+                  alt={user.name}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{user.name}</p>
+                  <p className="font-semibold text-gray-800 truncate">
+                    {user.name}
+                  </p>
                   <p className="text-xs text-blue-600 font-medium">Customer</p>
                 </div>
               </div>
@@ -912,7 +1026,10 @@ const UserDashboard = () => {
                   );
                 })}
               </nav>
-              <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-4 py-3 mt-4 text-red-600 hover:bg-red-50 rounded-xl"
+              >
                 <LogOut className="w-5 h-5" />
                 <span className="font-medium">Log Out</span>
               </button>
@@ -997,20 +1114,33 @@ const BookingCard = ({
   const statusColor = getStatusColor(booking.status);
   const statusLabel = getStatusLabel(booking.status);
   const canCancel = booking.status === "pending";
-  const canReview = booking.status === "completed" && (!booking.rating || booking.rating === null);
+  const canReview =
+    booking.status === "completed" &&
+    (!booking.rating || booking.rating === null);
   const hasReviewed = booking.rating && booking.rating !== null;
-  const needsPayment = booking.status === "completed" && !booking.paymentCompleted;
+  const needsPayment =
+    booking.status === "completed" && !booking.paymentCompleted;
 
   return (
     <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition-all border border-gray-100">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <button onClick={onProviderClick} className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer">
-              <img src={getProviderImage(booking.provider)} className="w-full h-full object-cover" alt={booking.provider.name} />
+            <button
+              onClick={onProviderClick}
+              className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border-2 border-blue-100 hover:scale-105 transition cursor-pointer"
+            >
+              <img
+                src={getProviderImage(booking.provider)}
+                className="w-full h-full object-cover"
+                alt={booking.provider.name}
+              />
             </button>
             <div>
-              <button onClick={onProviderClick} className="font-semibold text-gray-800 hover:text-blue-600 transition text-left text-sm md:text-base">
+              <button
+                onClick={onProviderClick}
+                className="font-semibold text-gray-800 hover:text-blue-600 transition text-left text-sm md:text-base"
+              >
                 {booking.provider.name}
               </button>
               <p className="text-xs text-blue-600">{booking.service}</p>
@@ -1024,23 +1154,42 @@ const BookingCard = ({
               <Clock className="w-3 h-3 ml-2" />
               <span>{booking.time}</span>
             </div>
-            {booking.startTime && <p className="text-xs text-gray-500">Started: {formatTime(booking.startTime)}</p>}
-            {booking.endTime && <p className="text-xs text-gray-500">Completed: {formatTime(booking.endTime)}</p>}
-            {booking.duration > 0 && <p className="text-xs text-gray-500">Duration: {booking.duration.toFixed(2)} hours</p>}
+            {booking.startTime && (
+              <p className="text-xs text-gray-500">
+                Started: {formatTime(booking.startTime)}
+              </p>
+            )}
+            {booking.endTime && (
+              <p className="text-xs text-gray-500">
+                Completed: {formatTime(booking.endTime)}
+              </p>
+            )}
+            {booking.duration > 0 && (
+              <p className="text-xs text-gray-500">
+                Duration: {booking.duration.toFixed(2)} hours
+              </p>
+            )}
           </div>
         </div>
 
         <div className="text-right min-w-[140px] md:min-w-[160px]">
-          <span className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 text-xs font-medium rounded-full ${statusColor}`}>
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 md:px-3 md:py-1 text-xs font-medium rounded-full ${statusColor}`}
+          >
             <CheckCircle className="w-3 h-3" />
             {statusLabel}
           </span>
           <p className="text-base md:text-lg font-bold text-gray-800 mt-2">
-            {booking.calculatedAmount > 0 ? formatPrice(booking.calculatedAmount) : formatPrice(booking.totalAmount)}
+            {booking.calculatedAmount > 0
+              ? formatPrice(booking.calculatedAmount)
+              : formatPrice(booking.totalAmount)}
           </p>
 
           {type === "upcoming" && canCancel && (
-            <button onClick={onCancel} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto">
+            <button
+              onClick={onCancel}
+              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-red-50 text-red-600 rounded-lg text-xs md:text-sm font-medium hover:bg-red-100 transition flex items-center gap-1 mx-auto"
+            >
               <XCircle className="w-3 h-3 md:w-4 md:h-4" />
               Cancel
             </button>
@@ -1048,12 +1197,18 @@ const BookingCard = ({
 
           {type === "history" && needsPayment && (
             <div className="mt-3 pt-2">
-              <PaymentButton booking={booking} onPaymentComplete={onPaymentComplete} />
+              <PaymentButton
+                booking={booking}
+                onPaymentComplete={onPaymentComplete}
+              />
             </div>
           )}
 
           {type === "history" && canReview && (
-            <button onClick={onReview} className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700 transition flex items-center gap-1 mx-auto">
+            <button
+              onClick={onReview}
+              className="mt-2 px-3 py-1.5 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg text-xs md:text-sm font-medium hover:bg-blue-700 transition flex items-center gap-1 mx-auto"
+            >
               <Star className="w-3 h-3 md:w-4 md:h-4" />
               Review
             </button>
@@ -1064,7 +1219,9 @@ const BookingCard = ({
               {renderStars(booking.rating)}
               {booking.review && (
                 <div className="text-left mt-1 p-2 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-600 italic">"{booking.review}"</p>
+                  <p className="text-xs text-gray-600 italic">
+                    "{booking.review}"
+                  </p>
                 </div>
               )}
             </div>
@@ -1097,20 +1254,31 @@ const ProviderModal = ({
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
           <div className="flex justify-between items-start">
             <h3 className="text-xl font-bold">Provider Details</h3>
-            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
         <div className="p-6 max-h-[70vh] overflow-y-auto">
           <div className="flex items-center gap-4 mb-6">
-            <img src={getProviderImage(provider)} className="w-20 h-20 rounded-full border-4 border-blue-100 object-cover" alt={provider.name} />
+            <img
+              src={getProviderImage(provider)}
+              className="w-20 h-20 rounded-full border-4 border-blue-100 object-cover"
+              alt={provider.name}
+            />
             <div>
-              <h4 className="text-lg font-semibold text-gray-800">{provider.name}</h4>
+              <h4 className="text-lg font-semibold text-gray-800">
+                {provider.name}
+              </h4>
               <p className="text-sm text-blue-600">{provider.category}</p>
               <div className="flex items-center gap-1 mt-1">
                 {renderStars(provider.rating || 0)}
-                <span className="text-xs text-gray-500 ml-1">({provider.totalReviews || 0} reviews)</span>
+                <span className="text-xs text-gray-500 ml-1">
+                  ({provider.totalReviews || 0} reviews)
+                </span>
               </div>
             </div>
           </div>
@@ -1121,16 +1289,48 @@ const ProviderModal = ({
               Booking Details
             </h5>
             <div className="space-y-2">
-              <p className="text-sm"><span className="font-medium text-gray-700">Service:</span> {booking.service}</p>
-              <p className="text-sm"><span className="font-medium text-gray-700">Date & Time:</span> {formatDate(booking.date)} at {booking.time}</p>
+              <p className="text-sm">
+                <span className="font-medium text-gray-700">Service:</span>{" "}
+                {booking.service}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium text-gray-700">Date & Time:</span>{" "}
+                {formatDate(booking.date)} at {booking.time}
+              </p>
               <p className="text-sm">
                 <span className="font-medium text-gray-700">Status:</span>
-                <span className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusColor}`}>{statusLabel}</span>
+                <span
+                  className={`ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full ${statusColor}`}
+                >
+                  {statusLabel}
+                </span>
               </p>
-              {booking.startTime && <p className="text-sm"><span className="font-medium text-gray-700">Started:</span> {formatTime(booking.startTime)}</p>}
-              {booking.endTime && <p className="text-sm"><span className="font-medium text-gray-700">Completed:</span> {formatTime(booking.endTime)}</p>}
-              {booking.duration > 0 && <p className="text-sm"><span className="font-medium text-gray-700">Duration:</span> {booking.duration.toFixed(2)} hours</p>}
-              {booking.calculatedAmount > 0 && <p className="text-sm"><span className="font-medium text-gray-700">Total Amount:</span> {formatPrice(booking.calculatedAmount)}</p>}
+              {booking.startTime && (
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Started:</span>{" "}
+                  {formatTime(booking.startTime)}
+                </p>
+              )}
+              {booking.endTime && (
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Completed:</span>{" "}
+                  {formatTime(booking.endTime)}
+                </p>
+              )}
+              {booking.duration > 0 && (
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">Duration:</span>{" "}
+                  {booking.duration.toFixed(2)} hours
+                </p>
+              )}
+              {booking.calculatedAmount > 0 && (
+                <p className="text-sm">
+                  <span className="font-medium text-gray-700">
+                    Total Amount:
+                  </span>{" "}
+                  {formatPrice(booking.calculatedAmount)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -1139,9 +1339,22 @@ const ProviderModal = ({
               <User className="w-4 h-4 text-blue-600" />
               About Provider
             </h5>
-            <p className="text-sm text-gray-600">{provider.description || "Professional service provider dedicated to quality work and customer satisfaction."}</p>
-            {provider.experience && <p className="text-sm text-gray-600 mt-2"><span className="font-medium">Experience:</span> {provider.experience}</p>}
-            {provider.hourlyRate && <p className="text-sm text-gray-600 mt-1"><span className="font-medium">Hourly Rate:</span> Rs. {provider.hourlyRate}/hr</p>}
+            <p className="text-sm text-gray-600">
+              {provider.description ||
+                "Professional service provider dedicated to quality work and customer satisfaction."}
+            </p>
+            {provider.experience && (
+              <p className="text-sm text-gray-600 mt-2">
+                <span className="font-medium">Experience:</span>{" "}
+                {provider.experience}
+              </p>
+            )}
+            {provider.hourlyRate && (
+              <p className="text-sm text-gray-600 mt-1">
+                <span className="font-medium">Hourly Rate:</span> Rs.{" "}
+                {provider.hourlyRate}/hr
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -1169,7 +1382,10 @@ const ReviewModal = ({
               <h3 className="text-xl font-bold">Rate Your Experience</h3>
               <p className="text-sm text-blue-100 mt-1">How was the service?</p>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -1180,24 +1396,36 @@ const ReviewModal = ({
               <Award className="w-8 h-8 text-blue-600" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-800">{booking.provider.name}</h4>
+              <h4 className="font-semibold text-gray-800">
+                {booking.provider.name}
+              </h4>
               <p className="text-sm text-gray-500">{booking.service}</p>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Rating
+            </label>
             <div className="flex gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} onClick={() => setRatingValue(star)} className="focus:outline-none transition-transform hover:scale-110">
-                  <Star className={`w-8 h-8 ${star <= ratingValue ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                <button
+                  key={star}
+                  onClick={() => setRatingValue(star)}
+                  className="focus:outline-none transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-8 h-8 ${star <= ratingValue ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                  />
                 </button>
               ))}
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Your Review (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Your Review (Optional)
+            </label>
             <textarea
               rows="4"
               value={reviewText}
@@ -1207,7 +1435,10 @@ const ReviewModal = ({
             />
           </div>
 
-          <button onClick={onSubmit} className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-600 transition">
+          <button
+            onClick={onSubmit}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-600 transition"
+          >
             Submit Review
           </button>
         </div>

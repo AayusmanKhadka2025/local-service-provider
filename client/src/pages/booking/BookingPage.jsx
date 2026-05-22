@@ -41,10 +41,22 @@ import {
   Paperclip,
   Smile,
   CheckCheck,
+  XCircle,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import { useNotifications } from "../../hooks/useNotifications";
 
 const SOCKET_URL = "http://localhost:5050";
+
+// Helper function to check provider availability on a specific date
+const isProviderAvailableOnDate = (provider, date) => {
+  if (!provider?.availableDays || provider.availableDays.length === 0) {
+    return false;
+  }
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const selectedDayName = dayNames[date.getDay()];
+  return provider.availableDays.includes(selectedDayName);
+};
 
 // Chat Component for Booking Page
 const BookingChat = ({ provider, user, onClose }) => {
@@ -85,6 +97,28 @@ const BookingChat = ({ provider, user, onClose }) => {
       newSocket.disconnect();
     };
   }, [user._id]);
+
+  const { syncNotificationsFromBookings } = useNotifications(user?._id);
+
+  useEffect(() => {
+    const fetchUserBookings = async () => {
+      if (!user?._id) return;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          "http://localhost:5050/api/bookings/user",
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.data.success) {
+          syncNotificationsFromBookings(response.data.bookings);
+        }
+      } catch (error) {
+        console.error("Error fetching user bookings for notifications:", error);
+      }
+    };
+
+    fetchUserBookings();
+  }, [user, syncNotificationsFromBookings]);
 
   // Get or create chat - NO BOOKING ID
   useEffect(() => {
@@ -287,7 +321,10 @@ const BookingChat = ({ provider, user, onClose }) => {
       {/* Chat Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={onClose} className="text-white hover:bg-white/20 p-1 rounded-lg transition">
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 p-1 rounded-lg transition"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <img
@@ -299,7 +336,9 @@ const BookingChat = ({ provider, user, onClose }) => {
             alt={provider.firstName}
           />
           <div>
-            <h3 className="font-semibold text-white">{provider.firstName} {provider.lastName}</h3>
+            <h3 className="font-semibold text-white">
+              {provider.firstName} {provider.lastName}
+            </h3>
             <p className="text-xs text-blue-100">{provider.category}</p>
           </div>
         </div>
@@ -316,36 +355,67 @@ const BookingChat = ({ provider, user, onClose }) => {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <MessageSquare className="w-16 h-16 text-gray-300 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700">No messages yet</h3>
-            <p className="text-sm text-gray-500 mt-2">Send a message to {provider.firstName} to start the conversation.</p>
+            <h3 className="text-lg font-semibold text-gray-700">
+              No messages yet
+            </h3>
+            <p className="text-sm text-gray-500 mt-2">
+              Send a message to {provider.firstName} to start the conversation.
+            </p>
           </div>
         ) : (
           Object.entries(groupedMessages).map(([date, dateMessages]) => (
             <div key={date}>
               <div className="text-center my-4">
-                <span className="text-xs text-gray-400 bg-gray-200 px-3 py-1 rounded-full">{date}</span>
+                <span className="text-xs text-gray-400 bg-gray-200 px-3 py-1 rounded-full">
+                  {date}
+                </span>
               </div>
               {dateMessages.map((message) => {
                 const isSender = message.senderId === user._id;
                 return (
-                  <div key={message._id} className={`flex ${isSender ? "justify-end" : "justify-start"} mb-3`}>
-                    <div className={`max-w-[70%] ${isSender ? "order-2" : "order-1"}`}>
-                      <div className={`rounded-2xl px-4 py-2 ${isSender ? "bg-blue-600 text-white" : "bg-white border border-gray-200"}`}>
-                        {message.messageType === "text" && <p className="text-sm break-words">{message.message}</p>}
+                  <div
+                    key={message._id}
+                    className={`flex ${isSender ? "justify-end" : "justify-start"} mb-3`}
+                  >
+                    <div
+                      className={`max-w-[70%] ${isSender ? "order-2" : "order-1"}`}
+                    >
+                      <div
+                        className={`rounded-2xl px-4 py-2 ${isSender ? "bg-blue-600 text-white" : "bg-white border border-gray-200"}`}
+                      >
+                        {message.messageType === "text" && (
+                          <p className="text-sm break-words">
+                            {message.message}
+                          </p>
+                        )}
                         {message.messageType === "image" && (
                           <img
                             src={message.mediaUrl}
                             alt="Shared image"
                             className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition"
-                            onClick={() => window.open(message.mediaUrl, "_blank")}
+                            onClick={() =>
+                              window.open(message.mediaUrl, "_blank")
+                            }
                           />
                         )}
                         {message.messageType === "video" && (
-                          <video src={message.mediaUrl} controls className="max-w-full rounded-lg" controlsList="nodownload" />
+                          <video
+                            src={message.mediaUrl}
+                            controls
+                            className="max-w-full rounded-lg"
+                            controlsList="nodownload"
+                          />
                         )}
-                        <div className={`text-xs mt-1 flex items-center justify-end gap-1 ${isSender ? "text-blue-200" : "text-gray-400"}`}>
+                        <div
+                          className={`text-xs mt-1 flex items-center justify-end gap-1 ${isSender ? "text-blue-200" : "text-gray-400"}`}
+                        >
                           <span>{formatTime(message.createdAt)}</span>
-                          {isSender && (message.read ? <CheckCheck className="w-3 h-3" /> : <Check className="w-3 h-3" />)}
+                          {isSender &&
+                            (message.read ? (
+                              <CheckCheck className="w-3 h-3" />
+                            ) : (
+                              <Check className="w-3 h-3" />
+                            ))}
                         </div>
                       </div>
                     </div>
@@ -385,18 +455,42 @@ const BookingChat = ({ provider, user, onClose }) => {
       {/* Input Area */}
       <div className="p-4 border-t border-gray-200 bg-white">
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition">
+          <button
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition"
+          >
             <Smile className="w-5 h-5" />
           </button>
 
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition" disabled={uploading}>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition"
+            disabled={uploading}
+          >
             <Paperclip className="w-5 h-5" />
           </button>
 
           {showEmojiPicker && (
             <div className="absolute bottom-16 left-4 bg-white rounded-lg shadow-lg border p-2 z-10">
               <div className="grid grid-cols-8 gap-1">
-                {["😊", "😂", "❤️", "👍", "🎉", "🔥", "👏", "🙏", "😢", "😡", "🥳", "💪", "👋", "✅", "⭐", "💯"].map((emoji) => (
+                {[
+                  "😊",
+                  "😂",
+                  "❤️",
+                  "👍",
+                  "🎉",
+                  "🔥",
+                  "👏",
+                  "🙏",
+                  "😢",
+                  "😡",
+                  "🥳",
+                  "💪",
+                  "👋",
+                  "✅",
+                  "⭐",
+                  "💯",
+                ].map((emoji) => (
                   <button
                     key={emoji}
                     onClick={() => {
@@ -412,7 +506,13 @@ const BookingChat = ({ provider, user, onClose }) => {
             </div>
           )}
 
-          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,video/*" className="hidden" />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="image/*,video/*"
+            className="hidden"
+          />
 
           <input
             type="text"
@@ -508,7 +608,9 @@ export default function BookingPage() {
   const fetchUserProfile = async (email) => {
     try {
       setLoadingProfile(true);
-      const response = await axios.get(`http://localhost:5050/api/users/profile/${email}`);
+      const response = await axios.get(
+        `http://localhost:5050/api/users/profile/${email}`
+      );
       if (response.data.success) {
         const userProfile = response.data.user;
         setContactDetails((prev) => ({
@@ -537,7 +639,9 @@ export default function BookingPage() {
       if (!provider?._id) return;
       try {
         setLoadingReviews(true);
-        const response = await axios.get(`http://localhost:5050/api/bookings/provider/reviews/${provider._id}`);
+        const response = await axios.get(
+          `http://localhost:5050/api/bookings/provider/reviews/${provider._id}`
+        );
         if (response.data.success) {
           setReviews(response.data.reviews);
         }
@@ -624,7 +728,8 @@ export default function BookingPage() {
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       if (timeSlot.hour24 < currentHour) return true;
-      if (timeSlot.hour24 === currentHour && timeSlot.minute <= currentMinute) return true;
+      if (timeSlot.hour24 === currentHour && timeSlot.minute <= currentMinute)
+        return true;
     }
     return false;
   };
@@ -694,11 +799,15 @@ export default function BookingPage() {
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const handlePrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    setCurrentMonth(
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+    );
   };
 
   const handleNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    setCurrentMonth(
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+    );
   };
 
   const handleDateSelect = (date) => {
@@ -706,10 +815,47 @@ export default function BookingPage() {
       setDateError("Cannot select past dates. Please choose a future date.");
       return;
     }
-    if (!hasAvailableTimeSlots(date)) {
-      setDateError("All time slots for this date have passed. Please select a future date.");
+
+    // Check provider availability on selected date
+    if (!isProviderAvailableOnDate(provider, date)) {
+      const dayNames = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
+      const selectedDayName = dayNames[date.getDay()];
+      setDateError(
+        `Provider is not available on ${selectedDayName}. Available days: ${
+          provider.availableDays
+            ?.map((d) => {
+              const fullDays = {
+                Sun: "Sunday",
+                Mon: "Monday",
+                Tue: "Tuesday",
+                Wed: "Wednesday",
+                Thu: "Thursday",
+                Fri: "Friday",
+                Sat: "Saturday",
+              };
+              return fullDays[d] || d;
+            })
+            .join(", ") || "Not specified"
+        }`
+      );
       return;
     }
+
+    if (!hasAvailableTimeSlots(date)) {
+      setDateError(
+        "All time slots for this date have passed. Please select a future date."
+      );
+      return;
+    }
+
     setSelectedDate(date);
     setManualDate(formatDateForInput(date));
     setShowManualInput(false);
@@ -725,8 +871,39 @@ export default function BookingPage() {
       const newDate = new Date(year, month - 1, day);
       if (isPastDate(newDate)) {
         setDateError("Cannot select past dates. Please choose a future date.");
+      } else if (!isProviderAvailableOnDate(provider, newDate)) {
+        const dayNames = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const selectedDayName = dayNames[newDate.getDay()];
+        setDateError(
+          `Provider is not available on ${selectedDayName}. Available days: ${
+            provider.availableDays
+              ?.map((d) => {
+                const fullDays = {
+                  Sun: "Sunday",
+                  Mon: "Monday",
+                  Tue: "Tuesday",
+                  Wed: "Wednesday",
+                  Thu: "Thursday",
+                  Fri: "Friday",
+                  Sat: "Saturday",
+                };
+                return fullDays[d] || d;
+              })
+              .join(", ") || "Not specified"
+          }`
+        );
       } else if (!hasAvailableTimeSlots(newDate)) {
-        setDateError("All time slots for this date have passed. Please select a future date.");
+        setDateError(
+          "All time slots for this date have passed. Please select a future date."
+        );
       } else {
         setSelectedDate(newDate);
         setDateError("");
@@ -752,7 +929,9 @@ export default function BookingPage() {
     todayDateOnly.setHours(0, 0, 0, 0);
     if (selectedDateOnly.getTime() === todayDateOnly.getTime()) {
       if (isManualTimePast(newTimeValue, selectedDate)) {
-        setDateError("Cannot book past times for today. Please select a future time.");
+        setDateError(
+          "Cannot book past times for today. Please select a future time."
+        );
       } else {
         setDateError("");
       }
@@ -789,7 +968,9 @@ export default function BookingPage() {
     newDate.setDate(selectedDate.getDate() - 7);
     if (!isPastDate(newDate)) {
       if (!hasAvailableTimeSlots(newDate)) {
-        setDateError("All time slots for this date have passed. Please select a future date.");
+        setDateError(
+          "All time slots for this date have passed. Please select a future date."
+        );
       }
       setSelectedDate(newDate);
       setManualDate(formatDateForInput(newDate));
@@ -854,7 +1035,10 @@ export default function BookingPage() {
       }
     } catch (error) {
       console.error("Booking error:", error);
-      setDateError(error.response?.data?.message || "Failed to create booking. Please try again.");
+      setDateError(
+        error.response?.data?.message ||
+          "Failed to create booking. Please try again."
+      );
       setBookingSuccess(false);
     }
   };
@@ -885,7 +1069,12 @@ export default function BookingPage() {
       <div className="flex items-center gap-0.5">
         {[...Array(5)].map((_, i) => {
           if (i < fullStars) {
-            return <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />;
+            return (
+              <Star
+                key={i}
+                className="w-4 h-4 fill-yellow-400 text-yellow-400"
+              />
+            );
           } else if (i === fullStars && hasHalfStar) {
             return (
               <div key={i} className="relative">
@@ -941,14 +1130,18 @@ export default function BookingPage() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Check className="w-8 h-8 text-green-600" />
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Booking Confirmed!</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              Booking Confirmed!
+            </h3>
             <p className="text-gray-600 mb-4">
               Your booking request has been sent successfully!
               <br />
               The provider will confirm shortly.
             </p>
             <div className="animate-pulse">
-              <p className="text-sm text-blue-600">Redirecting to dashboard...</p>
+              <p className="text-sm text-blue-600">
+                Redirecting to dashboard...
+              </p>
             </div>
           </div>
         </div>
@@ -958,7 +1151,11 @@ export default function BookingPage() {
       {showChatModal && user && provider && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl h-[600px] overflow-hidden animate-scaleIn">
-            <BookingChat provider={provider} user={user} onClose={() => setShowChatModal(false)} />
+            <BookingChat
+              provider={provider}
+              user={user}
+              onClose={() => setShowChatModal(false)}
+            />
           </div>
         </div>
       )}
@@ -977,13 +1174,15 @@ export default function BookingPage() {
               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg">
                 <Home className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">ServEase</h1>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+                ServEase
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-4">
             {/* Notification Bell */}
             <NotificationBell userId={user?._id} />
-            
+
             <Link to="/dashboard">
               <img
                 src={user?.avatar || "https://i.pravatar.cc/100?u=user"}
@@ -1011,8 +1210,12 @@ export default function BookingPage() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <h2 className="text-xl font-bold text-gray-800">{provider.firstName} {provider.lastName}</h2>
-                      <p className="text-blue-600 text-sm font-medium mt-1">{provider.category} Specialist</p>
+                      <h2 className="text-xl font-bold text-gray-800">
+                        {provider.firstName} {provider.lastName}
+                      </h2>
+                      <p className="text-blue-600 text-sm font-medium mt-1">
+                        {provider.category} Specialist
+                      </p>
                     </div>
                     <button
                       onClick={handleOpenChat}
@@ -1026,16 +1229,21 @@ export default function BookingPage() {
                     <span className="flex items-center gap-1">
                       {renderStars(provider.rating || 0)}
                       <span className="ml-1">{provider.rating || 0}</span>
-                      <span className="text-gray-400">({provider.totalReviews || 0} reviews)</span>
+                      <span className="text-gray-400">
+                        ({provider.totalReviews || 0} reviews)
+                      </span>
                     </span>
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" /> {provider.city || "Location not specified"}
+                      <MapPin className="w-4 h-4" />{" "}
+                      {provider.city || "Location not specified"}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Briefcase className="w-4 h-4" /> {provider.experience || "Experience not specified"}
+                      <Briefcase className="w-4 h-4" />{" "}
+                      {provider.experience || "Experience not specified"}
                     </span>
                     <span className="flex items-center gap-1">
-                      <DollarSign className="w-4 h-4" /> Rs.{provider.hourlyRate || 0}/hr
+                      <DollarSign className="w-4 h-4" /> Rs.
+                      {provider.hourlyRate || 0}/hr
                     </span>
                   </div>
                 </div>
@@ -1044,11 +1252,16 @@ export default function BookingPage() {
                 <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
                   <User className="w-4 h-4 text-blue-600" /> About Me
                 </h3>
-                <p className="text-sm text-gray-600 leading-relaxed">{provider.description}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {provider.description}
+                </p>
                 {provider.serviceTags && provider.serviceTags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4">
                     {provider.serviceTags.map((tag) => (
-                      <span key={tag} className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
+                      <span
+                        key={tag}
+                        className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full"
+                      >
                         {tag}
                       </span>
                     ))}
@@ -1060,7 +1273,8 @@ export default function BookingPage() {
             {/* REVIEWS SECTION */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                <MessageSquare className="w-4 h-4 text-blue-600" /> Client Reviews
+                <MessageSquare className="w-4 h-4 text-blue-600" /> Client
+                Reviews
               </h3>
               {loadingReviews ? (
                 <div className="flex justify-center py-8">
@@ -1074,22 +1288,36 @@ export default function BookingPage() {
               ) : (
                 <div className="space-y-4">
                   {reviews.map((review, index) => (
-                    <div key={index} className="border border-gray-100 rounded-xl p-4">
+                    <div
+                      key={index}
+                      className="border border-gray-100 rounded-xl p-4"
+                    >
                       <div className="flex items-start gap-3">
                         <img
-                          src={getReviewerImage(review.userEmail, review.userName)}
+                          src={getReviewerImage(
+                            review.userEmail,
+                            review.userName,
+                          )}
                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
                           alt={review.userName}
                         />
                         <div className="flex-1">
                           <div className="flex justify-between items-start flex-wrap gap-2">
                             <div>
-                              <h4 className="font-semibold text-gray-800">{review.userName}</h4>
-                              <p className="text-xs text-gray-400">{formatReviewDate(review.createdAt)}</p>
+                              <h4 className="font-semibold text-gray-800">
+                                {review.userName}
+                              </h4>
+                              <p className="text-xs text-gray-400">
+                                {formatReviewDate(review.createdAt)}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-1">{renderStars(review.rating)}</div>
+                            <div className="flex items-center gap-1">
+                              {renderStars(review.rating)}
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600 mt-2">"{review.review}"</p>
+                          <p className="text-sm text-gray-600 mt-2">
+                            "{review.review}"
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1102,19 +1330,40 @@ export default function BookingPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[
-                  { icon: Shield, title: "Service Guarantee", desc: "30-day guarantee on all work" },
-                  { icon: Clock, title: "Punctuality", desc: "Always on-time arrival" },
-                  { icon: CheckCircle, title: "Clean Workspace", desc: "Leaves no mess behind" },
-                  { icon: Award, title: "Licensed & Insured", desc: "Fully certified professional" },
+                  {
+                    icon: Shield,
+                    title: "Service Guarantee",
+                    desc: "30-day guarantee on all work",
+                  },
+                  {
+                    icon: Clock,
+                    title: "Punctuality",
+                    desc: "Always on-time arrival",
+                  },
+                  {
+                    icon: CheckCircle,
+                    title: "Clean Workspace",
+                    desc: "Leaves no mess behind",
+                  },
+                  {
+                    icon: Award,
+                    title: "Licensed & Insured",
+                    desc: "Fully certified professional",
+                  },
                 ].map((item, index) => {
                   const Icon = item.icon;
                   return (
-                    <div key={index} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition">
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition"
+                    >
                       <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                         <Icon className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-gray-800">{item.title}</h4>
+                        <h4 className="font-medium text-gray-800">
+                          {item.title}
+                        </h4>
                         <p className="text-sm text-gray-500">{item.desc}</p>
                       </div>
                     </div>
@@ -1132,12 +1381,20 @@ export default function BookingPage() {
                   <p className="text-sm text-gray-500">Service Rate</p>
                   <h2 className="text-3xl font-bold text-gray-800">
                     Rs. {provider.hourlyRate || 85}
-                    <span className="text-sm font-normal text-gray-500">/hour</span>
+                    <span className="text-sm font-normal text-gray-500">
+                      /hour
+                    </span>
                   </h2>
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-600 px-3 py-1.5 rounded-full">
-                  <CheckCircle className="w-3 h-3" /> Available Today
-                </span>
+                {isProviderAvailableOnDate(provider, new Date()) ? (
+                  <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-600 px-3 py-1.5 rounded-full">
+                    <CheckCircle className="w-3 h-3" /> Available Today
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-full">
+                    <XCircle className="w-3 h-3" /> Not Available Today
+                  </span>
+                )}
               </div>
 
               {dateError && (
@@ -1163,24 +1420,36 @@ export default function BookingPage() {
                 </button>
               </div>
 
-              {/* Calendar View */}
+              {/* Calendar View with Unavailable Days Styling */}
               {!showManualInput && (
                 <>
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-4">
-                      <button onClick={handlePrevMonth} className="p-2 hover:bg-gray-100 rounded-lg">
+                      <button
+                        onClick={handlePrevMonth}
+                        className="p-2 hover:bg-gray-100 rounded-lg"
+                      >
                         <ChevronLeft className="w-5 h-5 text-gray-600" />
                       </button>
                       <h3 className="text-lg font-semibold text-gray-800">
-                        {currentMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+                        {currentMonth.toLocaleString("default", {
+                          month: "long",
+                          year: "numeric",
+                        })}
                       </h3>
-                      <button onClick={handleNextMonth} className="p-2 hover:bg-gray-100 rounded-lg">
+                      <button
+                        onClick={handleNextMonth}
+                        className="p-2 hover:bg-gray-100 rounded-lg"
+                      >
                         <ChevronRight className="w-5 h-5 text-gray-600" />
                       </button>
                     </div>
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {weekDays.map((day) => (
-                        <div key={day} className="text-center text-xs font-medium text-gray-500 py-2">
+                        <div
+                          key={day}
+                          className="text-center text-xs font-medium text-gray-500 py-2"
+                        >
                           {day}
                         </div>
                       ))}
@@ -1190,19 +1459,46 @@ export default function BookingPage() {
                         const isSelectedDate = isSelected(date);
                         const isTodayDate = isToday(date);
                         const isPast = isPastDate(date);
+                        const isProviderAvailable = isProviderAvailableOnDate(provider, date);
                         const hasNoSlots = !isPast && !hasAvailableTimeSlots(date);
-                        const isDisabled = !isCurrentMonth || isPast || hasNoSlots;
+                        const isUnavailable = !isPast && !isProviderAvailable;
+                        
+                        // Determine button styles based on availability
+                        let buttonStyle = "";
+                        if (!isCurrentMonth) {
+                          buttonStyle = "text-gray-300 cursor-not-allowed opacity-50";
+                        } else if (isPast) {
+                          buttonStyle = "text-gray-300 cursor-not-allowed opacity-50 bg-gray-100 line-through";
+                        } else if (isUnavailable) {
+                          buttonStyle = "text-red-400 cursor-not-allowed opacity-60 bg-red-50 border border-red-200 line-through";
+                        } else if (hasNoSlots) {
+                          buttonStyle = "text-orange-400 cursor-not-allowed opacity-60 bg-orange-50 border border-orange-200 line-through";
+                        } else if (isSelectedDate) {
+                          buttonStyle = "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105";
+                        } else if (isTodayDate) {
+                          buttonStyle = "border-2 border-blue-300 bg-blue-50 text-blue-600";
+                        } else {
+                          buttonStyle = "hover:bg-gray-100 hover:scale-105 text-gray-700";
+                        }
+
+                        // Add tooltip title for unavailable days
+                        let title = "";
+                        if (isUnavailable) {
+                          const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                          title = `Provider not available on ${dayNames[date.getDay()]}`;
+                        } else if (hasNoSlots) {
+                          title = "No available time slots";
+                        } else if (isPast) {
+                          title = "Past date - cannot book";
+                        }
+
                         return (
                           <button
                             key={index}
-                            onClick={() => handleDateSelect(date)}
-                            disabled={isDisabled}
-                            className={`h-10 rounded-lg text-sm font-medium transition ${!isCurrentMonth ? "text-gray-300 cursor-not-allowed opacity-50" : ""}
-                              ${isPast ? "text-gray-300 cursor-not-allowed opacity-50 bg-gray-100" : ""}
-                              ${hasNoSlots && !isPast ? "text-orange-400 cursor-not-allowed opacity-60 bg-orange-50 border border-orange-200" : ""}
-                              ${isSelectedDate && !isDisabled ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : ""}
-                              ${isTodayDate && !isSelectedDate && !isDisabled ? "border-2 border-blue-300 bg-blue-50 text-blue-600" : ""}
-                              ${!isSelectedDate && !isDisabled && !isPast && !hasNoSlots ? "hover:bg-gray-100 hover:scale-105 text-gray-700" : ""}`}
+                            onClick={() => !isPast && !isUnavailable && !hasNoSlots && handleDateSelect(date)}
+                            disabled={!isCurrentMonth || isPast || isUnavailable || hasNoSlots}
+                            title={title}
+                            className={`h-10 rounded-lg text-sm font-medium transition-all duration-200 ${buttonStyle}`}
                           >
                             {date.getDate()}
                           </button>
@@ -1210,10 +1506,16 @@ export default function BookingPage() {
                       })}
                     </div>
                     <div className="flex justify-between gap-2 mt-4 pt-4 border-t border-gray-100">
-                      <button onClick={handlePrevWeek} className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
+                      <button
+                        onClick={handlePrevWeek}
+                        className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                      >
                         ← Previous Week
                       </button>
-                      <button onClick={handleNextWeek} className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
+                      <button
+                        onClick={handleNextWeek}
+                        className="flex-1 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                      >
                         Next Week →
                       </button>
                     </div>
@@ -1260,7 +1562,9 @@ export default function BookingPage() {
                       min={formatDateForInput(new Date())}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Selected: {formatDisplayDate(selectedDate)}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Selected: {formatDisplayDate(selectedDate)}
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1272,7 +1576,11 @@ export default function BookingPage() {
                       onChange={handleManualTimeChange}
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     />
-                    {selectedTime && <p className="text-xs text-green-600 mt-2">Selected time: {selectedTime}</p>}
+                    {selectedTime && (
+                      <p className="text-xs text-green-600 mt-2">
+                        Selected time: {selectedTime}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1281,8 +1589,12 @@ export default function BookingPage() {
               <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
                 <div className="flex items-center gap-2 mb-3">
                   <Users className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold text-gray-800">Contact Details</h3>
-                  <span className="text-xs text-red-500 ml-auto">* Required</span>
+                  <h3 className="font-semibold text-gray-800">
+                    Contact Details
+                  </h3>
+                  <span className="text-xs text-red-500 ml-auto">
+                    * Required
+                  </span>
                 </div>
                 <div className="mb-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1307,13 +1619,15 @@ export default function BookingPage() {
                   )}
                   {!loadingProfile && contactDetails.phoneNumber && (
                     <p className="text-xs text-green-600 mt-1">
-                      <CheckCircle className="w-3 h-3 inline mr-1" /> Using saved phone number
+                      <CheckCircle className="w-3 h-3 inline mr-1" /> Using
+                      saved phone number
                     </p>
                   )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Emergency Contact <span className="text-gray-400 text-xs">(Optional)</span>
+                    Emergency Contact{" "}
+                    <span className="text-gray-400 text-xs">(Optional)</span>
                   </label>
                   <div className="relative">
                     <AlertTriangle className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
@@ -1326,7 +1640,9 @@ export default function BookingPage() {
                       className="w-full border border-gray-200 rounded-lg pl-10 pr-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">For urgent situations only</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    For urgent situations only
+                  </p>
                 </div>
               </div>
 
@@ -1345,7 +1661,8 @@ export default function BookingPage() {
               </div>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <MessageSquare className="w-4 h-4 inline mr-2" /> Special Instructions (Optional)
+                  <MessageSquare className="w-4 h-4 inline mr-2" /> Special
+                  Instructions (Optional)
                 </label>
                 <textarea
                   rows="2"
@@ -1364,7 +1681,8 @@ export default function BookingPage() {
                 {bookingSuccess ? "Processing..." : "Book Now →"}
               </button>
               <p className="text-xs text-gray-400 text-center mt-3">
-                You won't be charged yet. Payment will be collected after service completion.
+                You won't be charged yet. Payment will be collected after
+                service completion.
               </p>
             </div>
           </div>
@@ -1383,7 +1701,8 @@ export default function BookingPage() {
                 <h3 className="text-xl font-semibold text-white">ServEase</h3>
               </div>
               <p className="text-sm leading-relaxed max-w-xs text-gray-400">
-                Your trusted platform for finding reliable local service providers.
+                Your trusted platform for finding reliable local service
+                providers.
               </p>
             </div>
             <div>
@@ -1400,9 +1719,16 @@ export default function BookingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4 text-lg">Policies</h4>
+              <h4 className="text-white font-semibold mb-4 text-lg">
+                Policies
+              </h4>
               <ul className="space-y-3 text-sm">
-                {["Privacy Policy", "Terms of Service", "Refund Policy", "Cookie Policy"].map((item) => (
+                {[
+                  "Privacy Policy",
+                  "Terms of Service",
+                  "Refund Policy",
+                  "Cookie Policy",
+                ].map((item) => (
                   <li key={item}>
                     <button className="hover:text-white transition flex items-center gap-2">
                       <ChevronRightIcon className="w-3 h-3 text-blue-400" />
@@ -1416,13 +1742,15 @@ export default function BookingPage() {
               <h4 className="text-white font-semibold mb-4 text-lg">Contact</h4>
               <ul className="space-y-4 text-sm">
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <Mail className="w-4 h-4 text-blue-400" /> serveease2082@gmail.com
+                  <Mail className="w-4 h-4 text-blue-400" />{" "}
+                  serveease2082@gmail.com
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
                   <Phone className="w-4 h-4 text-blue-400" /> +977 9812021764
                 </li>
                 <li className="flex items-center gap-3 hover:text-white transition">
-                  <MapPinIcon className="w-4 h-4 text-blue-400" /> Basantapur, Kathmandu
+                  <MapPinIcon className="w-4 h-4 text-blue-400" /> Basantapur,
+                  Kathmandu
                 </li>
               </ul>
               <div className="flex gap-3 mt-8">
@@ -1447,22 +1775,40 @@ export default function BookingPage() {
           </div>
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm">
             <p>© 2024 ServEase. All rights reserved.</p>
-            <p className="text-xs text-gray-600 mt-2">Made with ❤️ for better service experiences</p>
+            <p className="text-xs text-gray-600 mt-2">
+              Made with ❤️ for better service experiences
+            </p>
           </div>
         </div>
       </footer>
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         @keyframes scaleIn {
-          from { transform: scale(0.9); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+          from {
+            transform: scale(0.9);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
         }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
-        .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+        .animate-scaleIn {
+          animation: scaleIn 0.3s ease-out;
+        }
       `}</style>
     </div>
   );

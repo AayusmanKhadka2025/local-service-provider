@@ -20,7 +20,18 @@ const validTransitions = {
   cancelled: [],
 };
 
-// Create a new booking
+// Helper function to check provider availability on a specific date
+const isProviderAvailableOnDate = (provider, date) => {
+  if (!provider?.availableDays || provider.availableDays.length === 0) {
+    return false;
+  }
+  
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const selectedDayName = dayNames[date.getDay()];
+  
+  return provider.availableDays.includes(selectedDayName);
+};
+
 // Create a new booking
 const createBooking = async (req, res) => {
   try {
@@ -57,6 +68,7 @@ const createBooking = async (req, res) => {
       await user.save();
     }
 
+    // Fetch provider first
     const provider = await Provider.findById(providerId);
     if (!provider) {
       return res.status(404).json({
@@ -81,6 +93,21 @@ const createBooking = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Cannot book past dates",
+      });
+    }
+
+    // Check provider availability on selected date
+    if (!isProviderAvailableOnDate(provider, bookingDate)) {
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const selectedDayName = dayNames[bookingDate.getDay()];
+      const availableDaysFormatted = provider.availableDays?.map(d => {
+        const fullDays = { 'Sun': 'Sunday', 'Mon': 'Monday', 'Tue': 'Tuesday', 'Wed': 'Wednesday', 'Thu': 'Thursday', 'Fri': 'Friday', 'Sat': 'Saturday' };
+        return fullDays[d] || d;
+      }).join(", ") || "Not specified";
+      
+      return res.status(400).json({
+        success: false,
+        message: `Provider is not available on ${selectedDayName}. Available days: ${availableDaysFormatted}`,
       });
     }
 
@@ -159,7 +186,6 @@ const createBooking = async (req, res) => {
 };
 
 // Get bookings for a user
-// In getUserBookings, add payment status to response
 const getUserBookings = async (req, res) => {
   try {
     const userId = req.userId;
@@ -348,9 +374,6 @@ const completeService = async (req, res) => {
     booking.duration = parseFloat(durationHours.toFixed(2));
 
     // Calculate fare based on hourly increments (ceiling to next hour)
-    // If duration is 0.5 hours (30 mins) -> 1 hour
-    // If duration is 1.2 hours (1 hr 12 mins) -> 2 hours
-    // If duration is 2.7 hours (2 hr 42 mins) -> 3 hours
     const hoursToCharge = Math.ceil(durationHours);
 
     // Calculate fare based on provider's hourly rate
@@ -364,8 +387,8 @@ const completeService = async (req, res) => {
         ...booking.user,
         avatar: getFullImageUrl(booking.user.avatar),
       },
-      hoursCharged: hoursToCharge, // Include for response
-      actualDuration: durationHours, // Include for response
+      hoursCharged: hoursToCharge,
+      actualDuration: durationHours,
     };
 
     res.status(200).json({
@@ -571,7 +594,6 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    // Verify this booking belongs to the user
     if (booking.user.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
@@ -579,7 +601,6 @@ const cancelBooking = async (req, res) => {
       });
     }
 
-    // Only allow cancellation for pending bookings
     if (booking.status !== "pending") {
       return res.status(400).json({
         success: false,

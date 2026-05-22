@@ -32,6 +32,7 @@ import {
   Hourglass,
   Shield,
   Menu,
+  AlertTriangle,
 } from "lucide-react";
 import ProviderChat from "./ProviderChat";
 import ProviderEarning from "./ProviderEarning";
@@ -59,6 +60,14 @@ const ProviderDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmParams, setConfirmParams] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmType, setConfirmType] = useState("");
 
   // Notification State
   const [showNotifications, setShowNotifications] = useState(false);
@@ -119,6 +128,26 @@ const ProviderDashboard = () => {
     setTimeout(() => {
       setToast({ show: false, message: "", type: "" });
     }, 3000);
+  };
+
+  // Show confirmation dialog
+  const showConfirmation = (title, message, action, params, type = "warning") => {
+    setConfirmTitle(title);
+    setConfirmMessage(message);
+    setConfirmAction(() => action);
+    setConfirmParams(params);
+    setConfirmType(type);
+    setShowConfirmModal(true);
+  };
+
+  // Execute confirmed action
+  const executeConfirmedAction = async () => {
+    if (confirmAction) {
+      await confirmAction(confirmParams);
+    }
+    setShowConfirmModal(false);
+    setConfirmAction(null);
+    setConfirmParams(null);
   };
 
   // Close notification panel when clicking outside
@@ -443,7 +472,7 @@ const ProviderDashboard = () => {
     return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
-  // Update booking status - NO notifications created for accept/reject
+  // Update booking status with proper parameters
   const updateBookingStatus = async (bookingId, status, actionMessage) => {
     try {
       const token = localStorage.getItem("providerToken");
@@ -493,7 +522,6 @@ const ProviderDashboard = () => {
           cancelled: sortedCancelled,
         });
 
-        // DO NOT create notifications for accept/reject actions
         showToast(actionMessage, "success");
       }
     } catch (error) {
@@ -505,132 +533,160 @@ const ProviderDashboard = () => {
     }
   };
 
-  const handleAccept = (bookingId) =>
-    updateBookingStatus(
-      bookingId,
-      "confirmed",
-      "Booking Accepted Successfully! ✅",
+  // Fixed accept handler - passes correct parameters
+  const handleAccept = (bookingId) => {
+    showConfirmation(
+      "Accept Booking",
+      "Are you sure you want to accept this booking request? Once accepted, you will be expected to provide the service as scheduled.",
+      () => updateBookingStatus(bookingId, "confirmed", "Booking Accepted Successfully! ✅"),
+      null,
+      "accept"
     );
-
-  const handleReject = (bookingId) =>
-    updateBookingStatus(bookingId, "rejected", "Booking Rejected ❌");
-
-  const startService = async (bookingId) => {
-    try {
-      const token = localStorage.getItem("providerToken");
-      const response = await axios.put(
-        "http://localhost:5050/api/bookings/start",
-        { bookingId },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-
-      if (response.data.success) {
-        const updatedBookings = await axios.get(
-          "http://localhost:5050/api/bookings/provider",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-
-        const sortedCompleted = [
-          ...(updatedBookings.data.bookings.completed || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.completedAt || b.updatedAt || b.createdAt) -
-            new Date(a.completedAt || a.updatedAt || a.createdAt),
-        );
-        const sortedRejected = [
-          ...(updatedBookings.data.bookings.rejected || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt) -
-            new Date(a.updatedAt || a.createdAt),
-        );
-        const sortedCancelled = [
-          ...(updatedBookings.data.bookings.cancelled || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt) -
-            new Date(a.updatedAt || a.createdAt),
-        );
-
-        setBookings({
-          pending: updatedBookings.data.bookings.pending || [],
-          confirmed: updatedBookings.data.bookings.confirmed || [],
-          in_progress: updatedBookings.data.bookings.in_progress || [],
-          completed: sortedCompleted,
-          rejected: sortedRejected,
-          cancelled: sortedCancelled,
-        });
-        // DO NOT create notification for service start
-        showToast("Service Started! ⏱️", "success");
-      }
-    } catch (error) {
-      console.error("Error starting service:", error);
-      showToast(
-        error.response?.data?.message || "Failed to start service",
-        "error",
-      );
-    }
   };
 
-  const completeService = async (bookingId) => {
-    try {
-      const token = localStorage.getItem("providerToken");
-      const response = await axios.put(
-        "http://localhost:5050/api/bookings/complete",
-        { bookingId },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+  // Fixed reject handler - passes correct parameters
+  const handleReject = (bookingId) => {
+    showConfirmation(
+      "Reject Booking",
+      "Are you sure you want to reject this booking request? This action cannot be undone.",
+      () => updateBookingStatus(bookingId, "rejected", "Booking Rejected ❌"),
+      null,
+      "reject"
+    );
+  };
 
-      if (response.data.success) {
-        const updatedBookings = await axios.get(
-          "http://localhost:5050/api/bookings/provider",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
+  // Fixed start service handler
+  const startService = (bookingId) => {
+    showConfirmation(
+      "Start Service",
+      "Are you sure you want to start this service? The timer will begin tracking the service duration.",
+      async () => {
+        try {
+          const token = localStorage.getItem("providerToken");
+          const response = await axios.put(
+            "http://localhost:5050/api/bookings/start",
+            { bookingId },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
 
-        const sortedCompleted = [
-          ...(updatedBookings.data.bookings.completed || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.completedAt || b.updatedAt || b.createdAt) -
-            new Date(a.completedAt || a.updatedAt || a.createdAt),
-        );
-        const sortedRejected = [
-          ...(updatedBookings.data.bookings.rejected || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt) -
-            new Date(a.updatedAt || a.createdAt),
-        );
-        const sortedCancelled = [
-          ...(updatedBookings.data.bookings.cancelled || []),
-        ].sort(
-          (a, b) =>
-            new Date(b.updatedAt || b.createdAt) -
-            new Date(a.updatedAt || a.createdAt),
-        );
+          if (response.data.success) {
+            const updatedBookings = await axios.get(
+              "http://localhost:5050/api/bookings/provider",
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
 
-        setBookings({
-          pending: updatedBookings.data.bookings.pending || [],
-          confirmed: updatedBookings.data.bookings.confirmed || [],
-          in_progress: updatedBookings.data.bookings.in_progress || [],
-          completed: sortedCompleted,
-          rejected: sortedRejected,
-          cancelled: sortedCancelled,
-        });
-        // DO NOT create notification for service completion
-        showToast("Service Completed! 🎉", "success");
-      }
-    } catch (error) {
-      console.error("Error completing service:", error);
-      showToast(
-        error.response?.data?.message || "Failed to complete service",
-        "error",
-      );
-    }
+            const sortedCompleted = [
+              ...(updatedBookings.data.bookings.completed || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.completedAt || b.updatedAt || b.createdAt) -
+                new Date(a.completedAt || a.updatedAt || a.createdAt),
+            );
+            const sortedRejected = [
+              ...(updatedBookings.data.bookings.rejected || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.updatedAt || b.createdAt) -
+                new Date(a.updatedAt || a.createdAt),
+            );
+            const sortedCancelled = [
+              ...(updatedBookings.data.bookings.cancelled || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.updatedAt || b.createdAt) -
+                new Date(a.updatedAt || a.createdAt),
+            );
+
+            setBookings({
+              pending: updatedBookings.data.bookings.pending || [],
+              confirmed: updatedBookings.data.bookings.confirmed || [],
+              in_progress: updatedBookings.data.bookings.in_progress || [],
+              completed: sortedCompleted,
+              rejected: sortedRejected,
+              cancelled: sortedCancelled,
+            });
+            showToast("Service Started! ⏱️", "success");
+          }
+        } catch (error) {
+          console.error("Error starting service:", error);
+          showToast(
+            error.response?.data?.message || "Failed to start service",
+            "error",
+          );
+        }
+      },
+      null,
+      "start"
+    );
+  };
+
+  // Fixed complete service handler
+  const completeService = (bookingId) => {
+    showConfirmation(
+      "Complete Service",
+      "Are you sure you want to complete this service? The final amount will be calculated based on the duration.",
+      async () => {
+        try {
+          const token = localStorage.getItem("providerToken");
+          const response = await axios.put(
+            "http://localhost:5050/api/bookings/complete",
+            { bookingId },
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+
+          if (response.data.success) {
+            const updatedBookings = await axios.get(
+              "http://localhost:5050/api/bookings/provider",
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+
+            const sortedCompleted = [
+              ...(updatedBookings.data.bookings.completed || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.completedAt || b.updatedAt || b.createdAt) -
+                new Date(a.completedAt || a.updatedAt || a.createdAt),
+            );
+            const sortedRejected = [
+              ...(updatedBookings.data.bookings.rejected || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.updatedAt || b.createdAt) -
+                new Date(a.updatedAt || a.createdAt),
+            );
+            const sortedCancelled = [
+              ...(updatedBookings.data.bookings.cancelled || []),
+            ].sort(
+              (a, b) =>
+                new Date(b.updatedAt || b.createdAt) -
+                new Date(a.updatedAt || a.createdAt),
+            );
+
+            setBookings({
+              pending: updatedBookings.data.bookings.pending || [],
+              confirmed: updatedBookings.data.bookings.confirmed || [],
+              in_progress: updatedBookings.data.bookings.in_progress || [],
+              completed: sortedCompleted,
+              rejected: sortedRejected,
+              cancelled: sortedCancelled,
+            });
+            showToast("Service Completed! 🎉", "success");
+          }
+        } catch (error) {
+          console.error("Error completing service:", error);
+          showToast(
+            error.response?.data?.message || "Failed to complete service",
+            "error",
+          );
+        }
+      },
+      null,
+      "complete"
+    );
   };
 
   const handleUserClick = (userData, bookingDetails) => {
@@ -681,7 +737,7 @@ const ProviderDashboard = () => {
     );
   };
 
-  // Calculate statistics
+  // Calculate statistics (removed Total Rating)
   const totalBookings =
     bookings.pending.length +
     bookings.confirmed.length +
@@ -717,12 +773,6 @@ const ProviderDashboard = () => {
       value: completedCount,
       icon: CheckCircle,
       color: "green",
-    },
-    {
-      label: "Total Rating",
-      value: provider.rating.toFixed(1),
-      icon: Star,
-      color: "yellow",
     },
   ];
 
@@ -864,14 +914,29 @@ const ProviderDashboard = () => {
   const openChat = (chat) => {
     const booking = bookings.find((b) => b._id === chat.bookingId);
     if (booking) {
-      setSelectedChatBooking(booking);
-      setSelectedChatProvider({
-        _id: chat.participants.provider.providerId,
-        name: chat.participants.provider.name,
-        avatar: chat.participants.provider.avatar,
-        category: booking.provider?.category || "Service Provider",
+      setSelectedChat(chat);
+      setSelectedChatUser({
+        _id: chat.participants.user.userId,
+        name: chat.participants.user.name,
+        avatar: chat.participants.user.avatar,
+        email: "",
       });
       setShowChat(true);
+    }
+  };
+
+  const getButtonColor = (type) => {
+    switch (type) {
+      case "accept":
+        return "from-green-600 to-green-500";
+      case "reject":
+        return "from-red-600 to-red-500";
+      case "start":
+        return "from-green-600 to-green-500";
+      case "complete":
+        return "from-blue-600 to-blue-500";
+      default:
+        return "from-blue-600 to-blue-500";
     }
   };
 
@@ -909,7 +974,7 @@ const ProviderDashboard = () => {
             )}
 
             {/* Stats Grid with Hover Scale Effect */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
               {stats.map((stat) => {
                 const Icon = stat.icon;
                 const colors = {
@@ -917,7 +982,6 @@ const ProviderDashboard = () => {
                   orange: "from-orange-500 to-orange-400",
                   purple: "from-purple-500 to-purple-400",
                   green: "from-green-500 to-green-400",
-                  yellow: "from-yellow-500 to-yellow-400",
                 };
                 return (
                   <div
@@ -935,9 +999,6 @@ const ProviderDashboard = () => {
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 mt-1">
                       {stat.value}
                     </h2>
-                    {stat.label === "Total Rating" && (
-                      <div className="mt-2">{renderStars(provider.rating)}</div>
-                    )}
                   </div>
                 );
               })}
@@ -1141,6 +1202,61 @@ const ProviderDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className={`bg-gradient-to-r ${
+              confirmType === "accept" ? "from-green-600 to-green-500" :
+              confirmType === "reject" ? "from-red-600 to-red-500" :
+              confirmType === "start" ? "from-green-600 to-green-500" :
+              confirmType === "complete" ? "from-blue-600 to-blue-500" :
+              "from-yellow-600 to-yellow-500"
+            } p-6 text-white`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold">{confirmTitle}</h3>
+                  <p className="text-white/80 text-sm mt-1">Please confirm your action</p>
+                </div>
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="p-1 hover:bg-white/20 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Confirmation Required</p>
+                    <p className="text-xs text-yellow-700 mt-1">{confirmMessage}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeConfirmedAction}
+                  className={`flex-1 px-4 py-3 bg-gradient-to-r ${getButtonColor(confirmType)} text-white rounded-xl font-medium hover:opacity-90 transition flex items-center justify-center gap-2`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User Profile Modal */}
       {showUserModal && selectedUser && (
         <UserModal
@@ -1441,7 +1557,7 @@ const ProviderDashboard = () => {
         <div className="p-4 md:p-8">{renderContent()}</div>
       </main>
 
-      <style jsx>{`
+      <style>{`
         @keyframes fadeIn {
           from {
             opacity: 0;

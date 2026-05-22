@@ -28,6 +28,7 @@ import {
   Camera,
 } from "lucide-react";
 import NotificationBell from "../../components/NotificationBell";
+import { useNotifications } from "../../hooks/useNotifications";
 
 export default function ServiceListing() {
   const navigate = useNavigate();
@@ -49,7 +50,9 @@ export default function ServiceListing() {
     const fetchProviders = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("http://localhost:5050/api/providers/all");
+        const response = await axios.get(
+          "http://localhost:5050/api/providers/all",
+        );
         if (response.data.success) {
           setProviders(response.data.providers);
         }
@@ -69,12 +72,44 @@ export default function ServiceListing() {
     }
   }, []);
 
-  const categories = ["All", "Plumbing", "Electrical", "Carpentry", "Painting", "Cleaning"];
+  const { syncNotificationsFromBookings } = useNotifications(user?._id);
+
+  useEffect(() => {
+    const fetchUserBookings = async () => {
+      if (!user?._id) return;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(
+          "http://localhost:5050/api/bookings/user",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (response.data.success) {
+          syncNotificationsFromBookings(response.data.bookings);
+        }
+      } catch (error) {
+        console.error("Error fetching user bookings for notifications:", error);
+      }
+    };
+
+    fetchUserBookings();
+  }, [user, syncNotificationsFromBookings]);
+
+
+  
+
+  const categories = [
+    "All",
+    "Plumbing",
+    "Electrical",
+    "Carpentry",
+    "Painting",
+    "Cleaning",
+  ];
   const ratings = ["Any", "4.5", "4.0"];
 
   const toggleFavorite = (id) => {
     setFavoriteServices((prev) =>
-      prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id],
     );
   };
 
@@ -96,8 +131,10 @@ export default function ServiceListing() {
   };
 
   const filteredProviders = providers.filter((provider) => {
-    const matchesCategory = selectedCategory === "All" || provider.category === selectedCategory;
-    const matchesRating = selectedRating === "Any" || provider.rating >= parseFloat(selectedRating);
+    const matchesCategory =
+      selectedCategory === "All" || provider.category === selectedCategory;
+    const matchesRating =
+      selectedRating === "Any" || provider.rating >= parseFloat(selectedRating);
     const matchesPrice =
       (!priceMin || provider.hourlyRate >= parseInt(priceMin)) &&
       (!priceMax || provider.hourlyRate <= parseInt(priceMax));
@@ -107,7 +144,9 @@ export default function ServiceListing() {
       provider.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       provider.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (provider.serviceTags &&
-        provider.serviceTags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase())));
+        provider.serviceTags.some((tag) =>
+          tag.toLowerCase().includes(searchQuery.toLowerCase()),
+        ));
 
     return matchesCategory && matchesRating && matchesPrice && matchesSearch;
   });
@@ -127,7 +166,12 @@ export default function ServiceListing() {
       <div className="flex items-center gap-0.5">
         {[...Array(5)].map((_, i) => {
           if (i < fullStars) {
-            return <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />;
+            return (
+              <Star
+                key={i}
+                className="w-4 h-4 fill-yellow-400 text-yellow-400"
+              />
+            );
           } else if (i === fullStars && hasHalfStar) {
             return (
               <div key={i} className="relative">
@@ -231,9 +275,12 @@ export default function ServiceListing() {
           {/* Popular Tags */}
           <p className="text-sm text-gray-400 mt-6">
             Popular:{" "}
-            <span className="text-blue-600 cursor-pointer">Emergency Plumbing</span>
+            <span className="text-blue-600 cursor-pointer">
+              Emergency Plumbing
+            </span>
             , <span className="text-blue-600 cursor-pointer">AC Repair</span>,{" "}
-            <span className="text-blue-600 cursor-pointer">House Cleaning</span>,{" "}
+            <span className="text-blue-600 cursor-pointer">House Cleaning</span>
+            ,{" "}
             <span className="text-blue-600 cursor-pointer">Wall Painting</span>
           </p>
         </div>
@@ -273,10 +320,15 @@ export default function ServiceListing() {
 
               {/* Categories */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Service Categories</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  Service Categories
+                </h4>
                 <div className="space-y-2">
                   {categories.map((cat) => (
-                    <label key={cat} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label
+                      key={cat}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
                       <input
                         type="radio"
                         checked={selectedCategory === cat}
@@ -291,10 +343,15 @@ export default function ServiceListing() {
 
               {/* Rating */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Rating</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  Rating
+                </h4>
                 <div className="space-y-2">
                   {ratings.map((rate) => (
-                    <label key={rate} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label
+                      key={rate}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
                       <input
                         type="radio"
                         checked={selectedRating === rate}
@@ -311,7 +368,9 @@ export default function ServiceListing() {
 
               {/* Price Range */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Hourly Rate</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  Hourly Rate
+                </h4>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -337,8 +396,12 @@ export default function ServiceListing() {
             {/* Results Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">{filteredProviders.length} Professionals found</h3>
-                <p className="text-sm text-gray-500">Showing trusted service providers in your area</p>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {filteredProviders.length} Professionals found
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Showing trusted service providers in your area
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-gray-400" />
@@ -376,10 +439,14 @@ export default function ServiceListing() {
                           <h4 className="font-semibold text-gray-800">
                             {provider.firstName} {provider.lastName}
                           </h4>
-                          <p className="text-xs text-blue-600">{provider.category}</p>
+                          <p className="text-xs text-blue-600">
+                            {provider.category}
+                          </p>
                           <div className="flex items-center gap-1 mt-1">
                             <CheckCircle className="w-3 h-3 text-green-500" />
-                            <span className="text-xs text-green-600">Verified</span>
+                            <span className="text-xs text-green-600">
+                              Verified
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -400,8 +467,12 @@ export default function ServiceListing() {
                     {/* Rating */}
                     <div className="flex items-center gap-2 mt-3">
                       {renderStars(provider.rating || 0)}
-                      <span className="text-sm font-medium text-gray-800">{provider.rating || 0}</span>
-                      <span className="text-xs text-gray-400">({provider.totalReviews || 0} reviews)</span>
+                      <span className="text-sm font-medium text-gray-800">
+                        {provider.rating || 0}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        ({provider.totalReviews || 0} reviews)
+                      </span>
                     </div>
 
                     {/* Description */}
@@ -411,15 +482,19 @@ export default function ServiceListing() {
                     </p>
 
                     {/* Tags */}
-                    {provider.serviceTags && provider.serviceTags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {provider.serviceTags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {provider.serviceTags &&
+                      provider.serviceTags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {provider.serviceTags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded-lg"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                     {/* Location & Experience */}
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
@@ -439,7 +514,9 @@ export default function ServiceListing() {
                         <p className="text-xs text-gray-500">Hourly Rate</p>
                         <p className="text-lg font-bold text-gray-800">
                           Rs. {provider.hourlyRate || 0}
-                          <span className="text-sm font-normal text-gray-500">/hr</span>
+                          <span className="text-sm font-normal text-gray-500">
+                            /hr
+                          </span>
                         </p>
                       </div>
                       <button
@@ -458,8 +535,12 @@ export default function ServiceListing() {
             {filteredProviders.length === 0 && (
               <div className="text-center py-12">
                 <Briefcase className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">No professionals found</h3>
-                <p className="text-gray-500">Try adjusting your filters or search criteria</p>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                  No professionals found
+                </h3>
+                <p className="text-gray-500">
+                  Try adjusting your filters or search criteria
+                </p>
               </div>
             )}
           </div>
@@ -478,7 +559,8 @@ export default function ServiceListing() {
                 <h3 className="text-xl font-semibold text-white">ServEase</h3>
               </div>
               <p className="text-sm leading-relaxed max-w-xs text-gray-400">
-                Your trusted platform for finding reliable local service providers. Quality services, verified professionals, transparent
+                Your trusted platform for finding reliable local service
+                providers. Quality services, verified professionals, transparent
                 pricing.
               </p>
             </div>
@@ -498,9 +580,16 @@ export default function ServiceListing() {
             </div>
 
             <div>
-              <h4 className="text-white font-semibold mb-4 text-lg">Policies</h4>
+              <h4 className="text-white font-semibold mb-4 text-lg">
+                Policies
+              </h4>
               <ul className="space-y-3 text-sm">
-                {["Privacy Policy", "Terms of Service", "Refund Policy", "Cookie Policy"].map((item) => (
+                {[
+                  "Privacy Policy",
+                  "Terms of Service",
+                  "Refund Policy",
+                  "Cookie Policy",
+                ].map((item) => (
                   <li key={item}>
                     <button className="hover:text-white transition-colors flex items-center gap-2">
                       <ChevronRightIcon className="w-3 h-3 text-blue-400" />
@@ -552,7 +641,9 @@ export default function ServiceListing() {
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm">
             <p>© 2024 ServEase. All rights reserved.</p>
-            <p className="text-xs text-gray-600 mt-2">Made with ❤️ for better service experiences</p>
+            <p className="text-xs text-gray-600 mt-2">
+              Made with ❤️ for better service experiences
+            </p>
           </div>
         </div>
       </footer>
