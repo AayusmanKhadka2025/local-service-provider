@@ -94,9 +94,6 @@ export default function ServiceListing() {
     fetchUserBookings();
   }, [user, syncNotificationsFromBookings]);
 
-
-  
-
   const categories = [
     "All",
     "Plumbing",
@@ -468,7 +465,9 @@ export default function ServiceListing() {
                     <div className="flex items-center gap-2 mt-3">
                       {renderStars(provider.rating || 0)}
                       <span className="text-sm font-medium text-gray-800">
-                        {provider.rating || 0}
+                        {provider.rating
+                          ? parseFloat(provider.rating.toFixed(1))
+                          : 0}
                       </span>
                       <span className="text-xs text-gray-400">
                         ({provider.totalReviews || 0} reviews)

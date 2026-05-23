@@ -322,7 +322,7 @@ const getAllProviders = async (req, res) => {
       profileImage: provider.profileImage
         ? `http://localhost:5050${provider.profileImage}`
         : "",
-      rating: provider.rating || 0,
+      rating: provider.rating ? parseFloat(provider.rating.toFixed(1)) : 0,
       totalReviews: provider.totalReviews || 0,
       completedJobs: provider.completedJobs || 0,
       isVerified: provider.isVerified,

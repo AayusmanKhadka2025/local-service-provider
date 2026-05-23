@@ -107,7 +107,7 @@ const BookingChat = ({ provider, user, onClose }) => {
         const token = localStorage.getItem("token");
         const response = await axios.get(
           "http://localhost:5050/api/bookings/user",
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (response.data.success) {
           syncNotificationsFromBookings(response.data.bookings);
@@ -131,7 +131,7 @@ const BookingChat = ({ provider, user, onClose }) => {
             providerName: `${provider.firstName} ${provider.lastName}`,
             providerAvatar: provider.profileImage,
           },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers: { Authorization: `Bearer ${token}` } },
         );
 
         if (response.data.success) {
@@ -143,7 +143,7 @@ const BookingChat = ({ provider, user, onClose }) => {
 
           const messagesResponse = await axios.get(
             `http://localhost:5050/api/chat/messages/${response.data.chat._id}`,
-            { headers: { Authorization: `Bearer ${token}` } }
+            { headers: { Authorization: `Bearer ${token}` } },
           );
 
           if (messagesResponse.data.success) {
@@ -252,7 +252,7 @@ const BookingChat = ({ provider, user, onClose }) => {
             "Content-Type": "multipart/form-data",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (response.data.success) {
@@ -609,7 +609,7 @@ export default function BookingPage() {
     try {
       setLoadingProfile(true);
       const response = await axios.get(
-        `http://localhost:5050/api/users/profile/${email}`
+        `http://localhost:5050/api/users/profile/${email}`,
       );
       if (response.data.success) {
         const userProfile = response.data.user;
@@ -640,7 +640,7 @@ export default function BookingPage() {
       try {
         setLoadingReviews(true);
         const response = await axios.get(
-          `http://localhost:5050/api/bookings/provider/reviews/${provider._id}`
+          `http://localhost:5050/api/bookings/provider/reviews/${provider._id}`,
         );
         if (response.data.success) {
           setReviews(response.data.reviews);
@@ -800,13 +800,13 @@ export default function BookingPage() {
 
   const handlePrevMonth = () => {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   };
 
   const handleNextMonth = () => {
     setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
   };
 
@@ -844,14 +844,14 @@ export default function BookingPage() {
               return fullDays[d] || d;
             })
             .join(", ") || "Not specified"
-        }`
+        }`,
       );
       return;
     }
 
     if (!hasAvailableTimeSlots(date)) {
       setDateError(
-        "All time slots for this date have passed. Please select a future date."
+        "All time slots for this date have passed. Please select a future date.",
       );
       return;
     }
@@ -898,11 +898,11 @@ export default function BookingPage() {
                 return fullDays[d] || d;
               })
               .join(", ") || "Not specified"
-          }`
+          }`,
         );
       } else if (!hasAvailableTimeSlots(newDate)) {
         setDateError(
-          "All time slots for this date have passed. Please select a future date."
+          "All time slots for this date have passed. Please select a future date.",
         );
       } else {
         setSelectedDate(newDate);
@@ -930,7 +930,7 @@ export default function BookingPage() {
     if (selectedDateOnly.getTime() === todayDateOnly.getTime()) {
       if (isManualTimePast(newTimeValue, selectedDate)) {
         setDateError(
-          "Cannot book past times for today. Please select a future time."
+          "Cannot book past times for today. Please select a future time.",
         );
       } else {
         setDateError("");
@@ -969,7 +969,7 @@ export default function BookingPage() {
     if (!isPastDate(newDate)) {
       if (!hasAvailableTimeSlots(newDate)) {
         setDateError(
-          "All time slots for this date have passed. Please select a future date."
+          "All time slots for this date have passed. Please select a future date.",
         );
       }
       setSelectedDate(newDate);
@@ -1024,7 +1024,7 @@ export default function BookingPage() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
       if (response.data.success) {
         setShowSuccessPopup(true);
@@ -1037,7 +1037,7 @@ export default function BookingPage() {
       console.error("Booking error:", error);
       setDateError(
         error.response?.data?.message ||
-          "Failed to create booking. Please try again."
+          "Failed to create booking. Please try again.",
       );
       setBookingSuccess(false);
     }
@@ -1228,7 +1228,11 @@ export default function BookingPage() {
                   <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-600">
                     <span className="flex items-center gap-1">
                       {renderStars(provider.rating || 0)}
-                      <span className="ml-1">{provider.rating || 0}</span>
+                      <span className="ml-1">
+                        {provider.rating
+                          ? parseFloat(provider.rating.toFixed(1))
+                          : 0}
+                      </span>
                       <span className="text-gray-400">
                         ({provider.totalReviews || 0} reviews)
                       </span>
@@ -1459,32 +1463,51 @@ export default function BookingPage() {
                         const isSelectedDate = isSelected(date);
                         const isTodayDate = isToday(date);
                         const isPast = isPastDate(date);
-                        const isProviderAvailable = isProviderAvailableOnDate(provider, date);
-                        const hasNoSlots = !isPast && !hasAvailableTimeSlots(date);
+                        const isProviderAvailable = isProviderAvailableOnDate(
+                          provider,
+                          date,
+                        );
+                        const hasNoSlots =
+                          !isPast && !hasAvailableTimeSlots(date);
                         const isUnavailable = !isPast && !isProviderAvailable;
-                        
+
                         // Determine button styles based on availability
                         let buttonStyle = "";
                         if (!isCurrentMonth) {
-                          buttonStyle = "text-gray-300 cursor-not-allowed opacity-50";
+                          buttonStyle =
+                            "text-gray-300 cursor-not-allowed opacity-50";
                         } else if (isPast) {
-                          buttonStyle = "text-gray-300 cursor-not-allowed opacity-50 bg-gray-100 line-through";
+                          buttonStyle =
+                            "text-gray-300 cursor-not-allowed opacity-50 bg-gray-100 line-through";
                         } else if (isUnavailable) {
-                          buttonStyle = "text-red-400 cursor-not-allowed opacity-60 bg-red-50 border border-red-200 line-through";
+                          buttonStyle =
+                            "text-red-400 cursor-not-allowed opacity-60 bg-red-50 border border-red-200 line-through";
                         } else if (hasNoSlots) {
-                          buttonStyle = "text-orange-400 cursor-not-allowed opacity-60 bg-orange-50 border border-orange-200 line-through";
+                          buttonStyle =
+                            "text-orange-400 cursor-not-allowed opacity-60 bg-orange-50 border border-orange-200 line-through";
                         } else if (isSelectedDate) {
-                          buttonStyle = "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105";
+                          buttonStyle =
+                            "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105";
                         } else if (isTodayDate) {
-                          buttonStyle = "border-2 border-blue-300 bg-blue-50 text-blue-600";
+                          buttonStyle =
+                            "border-2 border-blue-300 bg-blue-50 text-blue-600";
                         } else {
-                          buttonStyle = "hover:bg-gray-100 hover:scale-105 text-gray-700";
+                          buttonStyle =
+                            "hover:bg-gray-100 hover:scale-105 text-gray-700";
                         }
 
                         // Add tooltip title for unavailable days
                         let title = "";
                         if (isUnavailable) {
-                          const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                          const dayNames = [
+                            "Sunday",
+                            "Monday",
+                            "Tuesday",
+                            "Wednesday",
+                            "Thursday",
+                            "Friday",
+                            "Saturday",
+                          ];
                           title = `Provider not available on ${dayNames[date.getDay()]}`;
                         } else if (hasNoSlots) {
                           title = "No available time slots";
@@ -1495,8 +1518,18 @@ export default function BookingPage() {
                         return (
                           <button
                             key={index}
-                            onClick={() => !isPast && !isUnavailable && !hasNoSlots && handleDateSelect(date)}
-                            disabled={!isCurrentMonth || isPast || isUnavailable || hasNoSlots}
+                            onClick={() =>
+                              !isPast &&
+                              !isUnavailable &&
+                              !hasNoSlots &&
+                              handleDateSelect(date)
+                            }
+                            disabled={
+                              !isCurrentMonth ||
+                              isPast ||
+                              isUnavailable ||
+                              hasNoSlots
+                            }
                             title={title}
                             className={`h-10 rounded-lg text-sm font-medium transition-all duration-200 ${buttonStyle}`}
                           >
@@ -1533,7 +1566,9 @@ export default function BookingPage() {
                         return (
                           <button
                             key={slot.display}
-                            onClick={() => !isPast && setSelectedTime(slot.display)}
+                            onClick={() =>
+                              !isPast && setSelectedTime(slot.display)
+                            }
                             disabled={isPast}
                             className={`py-2.5 rounded-lg text-sm font-medium transition ${isSelected && !isPast ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md scale-105" : ""}
                               ${!isSelected && !isPast ? "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105" : ""}
