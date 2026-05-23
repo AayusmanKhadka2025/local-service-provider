@@ -30,7 +30,25 @@ export default function ProfileSettings({ onProfileUpdate }) {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(
     "https://i.pravatar.cc/150?img=12",
-  ); // Default avatar
+  );
+
+  // Delete Account States
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  // Delete reasons
+  const deleteReasons = [
+    { value: "not_satisfied", label: "Not satisfied with the service" },
+    { value: "privacy_concerns", label: "Privacy concerns" },
+    { value: "switching_platform", label: "Switching to another platform" },
+    { value: "too_expensive", label: "Service too expensive" },
+    { value: "technical_issues", label: "Technical issues with the platform" },
+    { value: "no_longer_need", label: "No longer need the service" },
+    { value: "other", label: "Other" },
+  ];
 
   // User data state with default values
   const [userData, setUserData] = useState({
@@ -43,7 +61,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
     city: "",
     area: "",
     landmark: "",
-    avatar: "https://i.pravatar.cc/150?img=12", // Default avatar
+    avatar: "https://i.pravatar.cc/150?img=12",
   });
 
   // Password state
@@ -56,16 +74,15 @@ export default function ProfileSettings({ onProfileUpdate }) {
   // ========== FETCH LATEST PROFILE FROM SERVER ==========
   const fetchLatestProfile = async () => {
     if (!userData.email) return;
-    
+
     try {
       const response = await axios.get(
         `${API_BASE_URL}/users/profile/${userData.email}`
       );
-      
+
       if (response.data.success) {
         const user = response.data.user;
-        
-        // Update local state
+
         setUserData({
           fullName: user.fullName,
           email: user.email,
@@ -76,29 +93,25 @@ export default function ProfileSettings({ onProfileUpdate }) {
           city: user.city || "",
           area: user.area || "",
           landmark: user.landmark || "",
-          avatar: user.avatar || "https://i.pravatar.cc/150?img=12"
+          avatar: user.avatar || "https://i.pravatar.cc/150?img=12",
         });
-        
+
         setImagePreview(user.avatar || "https://i.pravatar.cc/150?img=12");
-        
-        // Update localStorage
-        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
         const updatedUser = {
           ...currentUser,
           ...user,
-          name: user.fullName
+          name: user.fullName,
         };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        
-        // Notify parent
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
         if (onProfileUpdate) {
           onProfileUpdate(updatedUser);
         }
-
-        console.log('Profile fetched and updated from server');
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error("Error fetching profile:", error);
     }
   };
 
@@ -109,8 +122,10 @@ export default function ProfileSettings({ onProfileUpdate }) {
       if (storedUser) {
         try {
           const user = JSON.parse(storedUser);
-          const avatarUrl = user.avatar || `https://i.pravatar.cc/150?u=${user.email || "user"}`;
-          
+          const avatarUrl =
+            user.avatar ||
+            `https://i.pravatar.cc/150?u=${user.email || "user"}`;
+
           setUserData({
             fullName: user.fullName || user.name || "",
             email: user.email || "",
@@ -124,8 +139,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
             avatar: avatarUrl,
           });
           setImagePreview(avatarUrl);
-          
-          // Fetch latest from server to ensure data is in sync
+
           if (user.email) {
             await fetchLatestProfile();
           }
@@ -136,9 +150,8 @@ export default function ProfileSettings({ onProfileUpdate }) {
     };
 
     loadUserData();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
-  // Handle input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setUserData((prev) => ({
@@ -147,7 +160,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }));
   };
 
-  // Handle password changes
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
     setPasswords((prev) => ({
@@ -156,7 +168,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }));
   };
 
-  // Handle image selection
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -169,7 +180,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }
   };
 
-  // Upload image to server
   const uploadImage = async () => {
     if (!imageFile) return null;
 
@@ -185,11 +195,10 @@ export default function ProfileSettings({ onProfileUpdate }) {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        },
+        }
       );
 
       if (response.data.success) {
-        // Return full URL for the image
         return `http://localhost:5050${response.data.avatarUrl}`;
       }
       return null;
@@ -199,13 +208,11 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }
   };
 
-  // Save Personal Information
   const handleSavePersonalInfo = async () => {
     try {
       setLoading(true);
       setMessage({ type: "", text: "" });
 
-      // Upload image if selected
       let avatarUrl = userData.avatar;
       if (imageFile) {
         const uploadedUrl = await uploadImage();
@@ -214,7 +221,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
         }
       }
 
-      // Prepare updated user data
       const updatedUserData = {
         fullName: userData.fullName,
         email: userData.email,
@@ -227,9 +233,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
         avatar: avatarUrl,
       };
 
-      console.log("Sending update to backend:", updatedUserData);
-
-      // Send update to backend
       const response = await axios.put(
         `${API_BASE_URL}/users/profile`,
         updatedUserData,
@@ -237,21 +240,17 @@ export default function ProfileSettings({ onProfileUpdate }) {
           headers: {
             "Content-Type": "application/json",
           },
-        },
+        }
       );
 
-      console.log("Backend response:", response.data);
-
       if (response.data.success) {
-        // Get the updated user data from response
         const updatedUserFromBackend = response.data.user;
 
-        // Update localStorage with new data
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
         const updatedUser = {
           ...currentUser,
           fullName: updatedUserFromBackend.fullName,
-          name: updatedUserFromBackend.fullName, // Keep compatibility
+          name: updatedUserFromBackend.fullName,
           email: updatedUserFromBackend.email,
           phone: updatedUserFromBackend.phone,
           gender: updatedUserFromBackend.gender,
@@ -264,18 +263,15 @@ export default function ProfileSettings({ onProfileUpdate }) {
 
         localStorage.setItem("user", JSON.stringify(updatedUser));
 
-        // Update local state
         setUserData((prev) => ({
           ...prev,
           ...updatedUserFromBackend,
         }));
 
-        // Update image preview if avatar was updated
         if (updatedUserFromBackend.avatar) {
           setImagePreview(updatedUserFromBackend.avatar);
         }
 
-        // Notify parent component (UserDashboard) about the update
         if (onProfileUpdate) {
           onProfileUpdate(updatedUser);
         }
@@ -285,10 +281,8 @@ export default function ProfileSettings({ onProfileUpdate }) {
           text: "Profile updated successfully!",
         });
 
-        // Fetch latest profile to ensure everything is in sync
         await fetchLatestProfile();
 
-        // Clear message after 3 seconds
         setTimeout(() => setMessage({ type: "", text: "" }), 3000);
       } else {
         setMessage({
@@ -309,9 +303,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }
   };
 
-  // Save Security Settings
   const handleSaveSecurity = async () => {
-    // Validate passwords
     if (passwords.newPassword !== passwords.confirmPassword) {
       setMessage({ type: "error", text: "New passwords do not match" });
       return;
@@ -330,7 +322,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
       setMessage({ type: "", text: "" });
 
       const response = await axios.put(
-        `${API_BASE_URL}/users/change-password`, // Using port 5050
+        `${API_BASE_URL}/users/change-password`,
         {
           email: userData.email,
           currentPassword: passwords.currentPassword,
@@ -340,7 +332,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
           headers: {
             "Content-Type": "application/json",
           },
-        },
+        }
       );
 
       if (response.data.success) {
@@ -349,7 +341,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
           text: "Password updated successfully!",
         });
 
-        // Clear password fields
         setPasswords({
           currentPassword: "",
           newPassword: "",
@@ -374,6 +365,60 @@ export default function ProfileSettings({ onProfileUpdate }) {
     }
   };
 
+  // Delete Account Handlers
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(false);
+    setShowReasonModal(true);
+  };
+
+  const handleReasonSubmit = () => {
+    if (!deleteReason) {
+      setMessage({
+        type: "error",
+        text: "Please select a reason for deleting your account",
+      });
+      return;
+    }
+    setShowReasonModal(false);
+    setShowFinalConfirm(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeleting(true);
+    setMessage({ type: "", text: "" });
+
+    try {
+      const token = localStorage.getItem("token");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+      const response = await axios.delete(
+        "http://localhost:5050/api/account/user",
+        {
+          data: { userId: storedUser._id, reason: deleteReason },
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        localStorage.removeItem("userType");
+        localStorage.removeItem("user_notifications");
+
+        window.location.href = "/login?message=Account deleted successfully";
+      }
+    } catch (error) {
+      console.error("Delete account error:", error);
+      setMessage({
+        type: "error",
+        text: error.response?.data?.message || "Failed to delete account. Please try again.",
+      });
+      setShowFinalConfirm(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Status Message */}
@@ -389,9 +434,8 @@ export default function ProfileSettings({ onProfileUpdate }) {
         </div>
       )}
 
-      {/* Profile Card with Name Below Icon */}
+      {/* Profile Card */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        {/* Cover Photo */}
         <div className="h-32 bg-gradient-to-r from-blue-600 to-blue-400 relative">
           <div className="absolute -bottom-12 left-8">
             <div className="relative inline-block">
@@ -404,7 +448,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
                 alt="profile"
                 className="w-28 h-28 rounded-full object-cover border-4 border-white shadow-xl"
                 onError={(e) => {
-                  e.target.src = "https://i.pravatar.cc/150?img=12"; // Fallback if image fails to load
+                  e.target.src = "https://i.pravatar.cc/150?img=12";
                 }}
               />
               <label className="absolute bottom-2 right-2 bg-white p-2.5 rounded-full shadow-lg border border-gray-200 hover:bg-blue-50 transition-colors cursor-pointer">
@@ -420,7 +464,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
           </div>
         </div>
 
-        {/* Name below profile icon */}
         <div className="pt-16 pb-6 px-8">
           <h2 className="text-2xl font-bold text-gray-800">
             {userData.fullName || "User"}
@@ -431,7 +474,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
 
       {/* PERSONAL INFORMATION SECTION */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        {/* Section Header */}
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -443,7 +485,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
               </h3>
             </div>
 
-            {/* Save button for Personal Information */}
             <button
               onClick={handleSavePersonalInfo}
               disabled={loading}
@@ -464,9 +505,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
           </div>
         </div>
 
-        {/* Section Content */}
         <div className="p-6 space-y-6">
-          {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Full Name
@@ -484,7 +523,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* Email & Phone */}
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -498,13 +536,10 @@ export default function ProfileSettings({ onProfileUpdate }) {
                   value={userData.email}
                   onChange={handleInputChange}
                   className="w-full bg-transparent outline-none text-gray-800"
-                  placeholder="Enter your email"
                   readOnly
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Email cannot be changed
-              </p>
+              <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
             </div>
 
             <div>
@@ -525,7 +560,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* Gender */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Gender
@@ -545,7 +579,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* Country with Nepali Flag */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Country
@@ -554,14 +587,11 @@ export default function ProfileSettings({ onProfileUpdate }) {
               <Flag className="w-5 h-5 text-gray-400 mr-3" />
               <span className="flex items-center gap-2">
                 <span className="text-2xl">🇳🇵</span>
-                <span className="text-gray-800 font-medium">
-                  Nepal (Default)
-                </span>
+                <span className="text-gray-800 font-medium">Nepal (Default)</span>
               </span>
             </div>
           </div>
 
-          {/* Province */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Province
@@ -585,7 +615,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* City and Area */}
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -622,7 +651,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* Landmark */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Landmark{" "}
@@ -645,7 +673,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
 
       {/* SECURITY SECTION */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        {/* Section Header */}
         <div className="p-6 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -657,7 +684,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
               </h3>
             </div>
 
-            {/* Save button for Security Settings */}
             <button
               onClick={handleSaveSecurity}
               disabled={loading}
@@ -678,9 +704,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
           </div>
         </div>
 
-        {/* Section Content */}
         <div className="p-6 space-y-6">
-          {/* Current Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Current Password
@@ -709,7 +733,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* New Password and Confirm Password */}
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -768,7 +791,6 @@ export default function ProfileSettings({ onProfileUpdate }) {
             </div>
           </div>
 
-          {/* Password Requirements */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -796,7 +818,7 @@ export default function ProfileSettings({ onProfileUpdate }) {
         </div>
       </div>
 
-      {/* Danger Zone */}
+      {/* DANGER ZONE */}
       <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-start gap-4">
@@ -804,20 +826,151 @@ export default function ProfileSettings({ onProfileUpdate }) {
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h4 className="text-red-600 font-semibold text-lg">
-                Danger Zone
-              </h4>
+              <h4 className="text-red-600 font-semibold text-lg">Danger Zone</h4>
               <p className="text-sm text-red-500 mt-1 max-w-md">
                 Once you delete your account, there is no going back. All your
-                data and bookings will be permanently removed.
+                data, bookings, and reviews will be permanently removed.
               </p>
             </div>
           </div>
-          <button className="px-6 py-3 rounded-xl border-2 border-red-400 text-red-600 hover:bg-red-100 transition font-medium whitespace-nowrap">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-6 py-3 rounded-xl border-2 border-red-400 text-red-600 hover:bg-red-100 transition font-medium whitespace-nowrap"
+          >
             Delete Account
           </button>
         </div>
       </div>
+
+      {/* First Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-white">
+              <h3 className="text-xl font-bold">Delete Account</h3>
+              <p className="text-red-100 text-sm mt-1">This action cannot be undone</p>
+            </div>
+            <div className="p-6">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Are you sure?</p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      You are about to permanently delete your account. This will remove all your bookings, reviews, and personal information.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteClick}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reason Selection Modal */}
+      {showReasonModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
+              <h3 className="text-xl font-bold">Help us improve</h3>
+              <p className="text-blue-100 text-sm mt-1">Please tell us why you're leaving</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 mb-6">
+                {deleteReasons.map((reason) => (
+                  <label key={reason.value} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deleteReason"
+                      value={reason.value}
+                      checked={deleteReason === reason.value}
+                      onChange={(e) => setDeleteReason(e.target.value)}
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{reason.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowReasonModal(false);
+                    setDeleteReason("");
+                  }}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleReasonSubmit}
+                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition"
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final Confirmation Modal */}
+      {showFinalConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-white">
+              <h3 className="text-xl font-bold">Final Confirmation</h3>
+              <p className="text-red-100 text-sm mt-1">This is your last chance</p>
+            </div>
+            <div className="p-6">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">Warning!</p>
+                    <p className="text-xs text-red-700 mt-1">
+                      This action is irreversible. All your data will be permanently deleted from our servers.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowFinalConfirm(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                  disabled={deleting}
+                >
+                  No, Keep My Account
+                </button>
+                <button
+                  onClick={confirmDeleteAccount}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                    <Loader className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Yes, Delete My Account"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
