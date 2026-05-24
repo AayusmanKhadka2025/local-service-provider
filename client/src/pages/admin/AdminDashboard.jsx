@@ -30,9 +30,10 @@ import {
   Download,
   DollarSign,
   Check,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 
+import UserSupport from "../admin/UserSupport";
 import UserManagement from "../admin/UserManagement";
 import ProviderManagement from "../admin/ProviderManagement";
 
@@ -50,7 +51,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalProviders: 0,
-    pendingProviders: 0
+    pendingProviders: 0,
   });
 
   // Notification State
@@ -67,7 +68,10 @@ const AdminDashboard = () => {
   // Close notification panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
         setShowNotifications(false);
       }
     };
@@ -83,19 +87,22 @@ const AdminDashboard = () => {
         try {
           const parsed = JSON.parse(storedNotifications);
           setNotifications(parsed);
-          setUnreadCount(parsed.filter(n => !n.read).length);
+          setUnreadCount(parsed.filter((n) => !n.read).length);
         } catch (e) {
           console.error("Error loading notifications:", e);
         }
       }
     };
-    
+
     loadNotificationsFromStorage();
   }, []);
 
   // Save notifications to localStorage
   const saveNotificationsToStorage = (updatedNotifications) => {
-    localStorage.setItem("admin_notifications", JSON.stringify(updatedNotifications));
+    localStorage.setItem(
+      "admin_notifications",
+      JSON.stringify(updatedNotifications),
+    );
   };
 
   // Generate unique notification ID
@@ -105,17 +112,19 @@ const AdminDashboard = () => {
 
   // Check if notification already exists
   const notificationExists = (notificationsList, providerId, type) => {
-    return notificationsList.some(n => n.id === generateNotificationId(providerId, type));
+    return notificationsList.some(
+      (n) => n.id === generateNotificationId(providerId, type),
+    );
   };
 
   // Create notification for verification request
   const createVerificationNotification = (provider, type, title, message) => {
     const notificationId = generateNotificationId(provider._id, type);
-    
+
     if (notificationExists(notifications, provider._id, type)) {
       return null;
     }
-    
+
     return {
       id: notificationId,
       type: type,
@@ -125,23 +134,29 @@ const AdminDashboard = () => {
       read: false,
       providerId: provider._id,
       providerName: `${provider.firstName} ${provider.lastName}`,
-      providerCategory: provider.category
+      providerCategory: provider.category,
     };
   };
 
   // Add notification to list
   const addNotification = (newNotification) => {
     if (!newNotification) return;
-    
-    setNotifications(prev => {
-      if (notificationExists(prev, newNotification.providerId, newNotification.type)) {
+
+    setNotifications((prev) => {
+      if (
+        notificationExists(
+          prev,
+          newNotification.providerId,
+          newNotification.type,
+        )
+      ) {
         return prev;
       }
       const updated = [newNotification, ...prev];
       saveNotificationsToStorage(updated);
       return updated;
     });
-    setUnreadCount(prev => prev + 1);
+    setUnreadCount((prev) => prev + 1);
   };
 
   // Check admin authentication
@@ -170,10 +185,13 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      const response = await axios.get("http://localhost:5050/api/admin/stats", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      const response = await axios.get(
+        "http://localhost:5050/api/admin/stats",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
       if (response.data.success) {
         setStats(response.data.stats);
       }
@@ -185,33 +203,43 @@ const AdminDashboard = () => {
   const fetchProviders = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      const response = await axios.get("http://localhost:5050/api/admin/providers", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      const response = await axios.get(
+        "http://localhost:5050/api/admin/providers",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
       if (response.data.success) {
         const providersData = response.data.providers;
         setProviders(providersData);
-        
+
         // Load existing notifications from storage
-        const existingNotifications = JSON.parse(localStorage.getItem("admin_notifications") || "[]");
-        const existingIds = new Set(existingNotifications.map(n => n.id));
-        
+        const existingNotifications = JSON.parse(
+          localStorage.getItem("admin_notifications") || "[]",
+        );
+        const existingIds = new Set(existingNotifications.map((n) => n.id));
+
         // Create notifications for pending verification requests
         const newNotifications = [];
-        
+
         // Calculate actual pending count (excluding verified and rejected)
-        const actualPendingProviders = providersData.filter(p => !p.isVerified && p.isActive !== false);
-        
+        const actualPendingProviders = providersData.filter(
+          (p) => !p.isVerified && p.isActive !== false,
+        );
+
         // Update stats with actual pending count
-        setStats(prev => ({
+        setStats((prev) => ({
           ...prev,
-          pendingProviders: actualPendingProviders.length
+          pendingProviders: actualPendingProviders.length,
         }));
-        
+
         // Create notifications for each pending provider
         actualPendingProviders.forEach((provider) => {
-          const notificationId = generateNotificationId(provider._id, "verification_request");
+          const notificationId = generateNotificationId(
+            provider._id,
+            "verification_request",
+          );
           if (!existingIds.has(notificationId)) {
             const notification = {
               id: notificationId,
@@ -222,35 +250,43 @@ const AdminDashboard = () => {
               read: false,
               providerId: provider._id,
               providerName: `${provider.firstName} ${provider.lastName}`,
-              providerCategory: provider.category
+              providerCategory: provider.category,
             };
             newNotifications.push(notification);
           }
         });
-        
+
         // Add all new notifications
         if (newNotifications.length > 0) {
           newNotifications.sort((a, b) => new Date(b.time) - new Date(a.time));
-          setNotifications(prev => {
+          setNotifications((prev) => {
             const updated = [...newNotifications, ...prev];
             saveNotificationsToStorage(updated);
             return updated;
           });
-          setUnreadCount(prev => prev + newNotifications.filter(n => !n.read).length);
+          setUnreadCount(
+            (prev) => prev + newNotifications.filter((n) => !n.read).length,
+          );
         } else {
           // If no new notifications, load existing ones and update read status for resolved providers
-          const updatedExisting = existingNotifications.map(notif => {
+          const updatedExisting = existingNotifications.map((notif) => {
             // If a provider is no longer pending (verified or rejected), mark notification as read
-            const providerStillPending = actualPendingProviders.some(p => p._id === notif.providerId);
-            if (!providerStillPending && notif.type === "verification_request" && !notif.read) {
+            const providerStillPending = actualPendingProviders.some(
+              (p) => p._id === notif.providerId,
+            );
+            if (
+              !providerStillPending &&
+              notif.type === "verification_request" &&
+              !notif.read
+            ) {
               return { ...notif, read: true };
             }
             return notif;
           });
-          
+
           setNotifications(updatedExisting);
           saveNotificationsToStorage(updatedExisting);
-          setUnreadCount(updatedExisting.filter(n => !n.read).length);
+          setUnreadCount(updatedExisting.filter((n) => !n.read).length);
         }
       }
     } catch (error) {
@@ -260,20 +296,20 @@ const AdminDashboard = () => {
 
   // Mark notification as read
   const markAsRead = (notificationId) => {
-    setNotifications(prev => {
-      const updated = prev.map(notif =>
-        notif.id === notificationId ? { ...notif, read: true } : notif
+    setNotifications((prev) => {
+      const updated = prev.map((notif) =>
+        notif.id === notificationId ? { ...notif, read: true } : notif,
       );
       saveNotificationsToStorage(updated);
       return updated;
     });
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   };
 
   // Mark all notifications as read
   const markAllAsRead = () => {
-    setNotifications(prev => {
-      const updated = prev.map(notif => ({ ...notif, read: true }));
+    setNotifications((prev) => {
+      const updated = prev.map((notif) => ({ ...notif, read: true }));
       saveNotificationsToStorage(updated);
       return updated;
     });
@@ -285,9 +321,9 @@ const AdminDashboard = () => {
   const handleNotificationClick = (notification) => {
     markAsRead(notification.id);
     setShowNotifications(false);
-    
+
     // Find the provider and open details modal
-    const provider = providers.find(p => p._id === notification.providerId);
+    const provider = providers.find((p) => p._id === notification.providerId);
     if (provider) {
       handleViewDetails(provider);
     }
@@ -300,11 +336,12 @@ const AdminDashboard = () => {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
   const handleVerifyProvider = async (providerId) => {
@@ -313,9 +350,9 @@ const AdminDashboard = () => {
       const response = await axios.put(
         `http://localhost:5050/api/admin/providers/${providerId}/verify`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-      
+
       if (response.data.success) {
         await fetchProviders();
         await fetchDashboardData();
@@ -329,16 +366,17 @@ const AdminDashboard = () => {
   };
 
   const handleRejectProvider = async (providerId) => {
-    if (!window.confirm("Are you sure you want to reject this provider?")) return;
-    
+    if (!window.confirm("Are you sure you want to reject this provider?"))
+      return;
+
     try {
       const token = localStorage.getItem("adminToken");
       const response = await axios.put(
         `http://localhost:5050/api/admin/providers/${providerId}/reject`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-      
+
       if (response.data.success) {
         await fetchProviders();
         await fetchDashboardData();
@@ -360,7 +398,7 @@ const AdminDashboard = () => {
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "users", label: "Users", icon: Users },
     { id: "providers", label: "Service Providers", icon: UserCheck },
-    { id: "complaints", label: "Complaints", icon: Shield },
+    { id: "complaints", label: "User Support", icon: Shield },
   ];
 
   const handleLogout = () => {
@@ -371,12 +409,29 @@ const AdminDashboard = () => {
   };
 
   // Calculate actual pending count for display
-  const actualPendingCount = providers.filter(p => !p.isVerified && p.isActive !== false).length;
+  const actualPendingCount = providers.filter(
+    (p) => !p.isVerified && p.isActive !== false,
+  ).length;
 
   const statCards = [
-    { label: "Total Users", value: stats.totalUsers, icon: Users, color: "blue" },
-    { label: "Service Providers", value: stats.totalProviders, icon: UserCheck, color: "green" },
-    { label: "Pending Verifications", value: actualPendingCount, icon: Shield, color: "orange" },
+    {
+      label: "Total Users",
+      value: stats.totalUsers,
+      icon: Users,
+      color: "blue",
+    },
+    {
+      label: "Service Providers",
+      value: stats.totalProviders,
+      icon: UserCheck,
+      color: "green",
+    },
+    {
+      label: "Pending Verifications",
+      value: actualPendingCount,
+      icon: Shield,
+      color: "orange",
+    },
   ];
 
   const getStatusColor = (status) => {
@@ -392,7 +447,7 @@ const AdminDashboard = () => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
-      day: "numeric"
+      day: "numeric",
     });
   };
 
@@ -411,7 +466,9 @@ const AdminDashboard = () => {
     );
   };
 
-  const filteredPendingProviders = providers.filter(p => !p.isVerified && p.isActive !== false);
+  const filteredPendingProviders = providers.filter(
+    (p) => !p.isVerified && p.isActive !== false,
+  );
 
   if (loading) {
     return (
@@ -426,15 +483,21 @@ const AdminDashboard = () => {
       {/* Toast Notification */}
       {toast.show && (
         <div className="fixed top-5 right-5 z-50 animate-slide-in">
-          <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-[300px] ${
-            toast.type === "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
-          }`}>
+          <div
+            className={`rounded-lg shadow-lg p-4 flex items-center gap-3 min-w-[300px] ${
+              toast.type === "success"
+                ? "bg-green-50 border border-green-200"
+                : "bg-red-50 border border-red-200"
+            }`}
+          >
             {toast.type === "success" ? (
               <CheckCircle className="w-5 h-5 text-green-600" />
             ) : (
               <XCircle className="w-5 h-5 text-red-600" />
             )}
-            <p className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}>
+            <p
+              className={`text-sm font-medium ${toast.type === "success" ? "text-green-800" : "text-red-800"}`}
+            >
               {toast.message}
             </p>
           </div>
@@ -449,7 +512,9 @@ const AdminDashboard = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-2xl font-bold">Provider Details</h3>
-                  <p className="text-blue-100 mt-1">Review provider information and take action</p>
+                  <p className="text-blue-100 mt-1">
+                    Review provider information and take action
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowProviderModal(false)}
@@ -459,12 +524,15 @@ const AdminDashboard = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="p-6">
               {/* Profile Section */}
               <div className="flex items-center gap-6 mb-6 pb-6 border-b border-gray-200">
                 <img
-                  src={selectedProvider.profileImage || `https://ui-avatars.com/api/?name=${selectedProvider.firstName}+${selectedProvider.lastName}&background=3b82f6&color=fff&size=120`}
+                  src={
+                    selectedProvider.profileImage ||
+                    `https://ui-avatars.com/api/?name=${selectedProvider.firstName}+${selectedProvider.lastName}&background=3b82f6&color=fff&size=120`
+                  }
                   className="w-28 h-28 rounded-full object-cover border-4 border-blue-100"
                   alt={selectedProvider.firstName}
                 />
@@ -472,10 +540,14 @@ const AdminDashboard = () => {
                   <h4 className="text-2xl font-bold text-gray-800">
                     {selectedProvider.firstName} {selectedProvider.lastName}
                   </h4>
-                  <p className="text-blue-600 font-medium">{selectedProvider.category}</p>
+                  <p className="text-blue-600 font-medium">
+                    {selectedProvider.category}
+                  </p>
                   <div className="flex items-center gap-2 mt-2">
                     {renderStars(selectedProvider.rating || 0)}
-                    <span className="text-sm text-gray-500">({selectedProvider.totalReviews || 0} reviews)</span>
+                    <span className="text-sm text-gray-500">
+                      ({selectedProvider.totalReviews || 0} reviews)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -490,15 +562,21 @@ const AdminDashboard = () => {
                   <div className="space-y-2">
                     <p className="text-sm flex items-center gap-2">
                       <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">{selectedProvider.email}</span>
+                      <span className="text-gray-700">
+                        {selectedProvider.email}
+                      </span>
                     </p>
                     <p className="text-sm flex items-center gap-2">
                       <Phone className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">{selectedProvider.phone}</span>
+                      <span className="text-gray-700">
+                        {selectedProvider.phone}
+                      </span>
                     </p>
                     <p className="text-sm flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">{selectedProvider.address}, {selectedProvider.city}</span>
+                      <span className="text-gray-700">
+                        {selectedProvider.address}, {selectedProvider.city}
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -511,40 +589,55 @@ const AdminDashboard = () => {
                   <div className="space-y-2">
                     <p className="text-sm flex items-center gap-2">
                       <Award className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">Experience: {selectedProvider.experience}</span>
+                      <span className="text-gray-700">
+                        Experience: {selectedProvider.experience}
+                      </span>
                     </p>
                     <p className="text-sm flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">Hourly Rate: ${selectedProvider.hourlyRate}/hr</span>
+                      <span className="text-gray-700">
+                        Hourly Rate: ${selectedProvider.hourlyRate}/hr
+                      </span>
                     </p>
                     <p className="text-sm flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">Service Area: {selectedProvider.serviceArea || "Not specified"}</span>
+                      <span className="text-gray-700">
+                        Service Area:{" "}
+                        {selectedProvider.serviceArea || "Not specified"}
+                      </span>
                     </p>
                     <p className="text-sm flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700">Available Days: {selectedProvider.availableDays?.join(", ") || "Not specified"}</span>
+                      <span className="text-gray-700">
+                        Available Days:{" "}
+                        {selectedProvider.availableDays?.join(", ") ||
+                          "Not specified"}
+                      </span>
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Service Tags */}
-              {selectedProvider.serviceTags && selectedProvider.serviceTags.length > 0 && (
-                <div className="mb-6">
-                  <h5 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-blue-600" />
-                    Service Tags
-                  </h5>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedProvider.serviceTags.map((tag, index) => (
-                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs">
-                        {tag}
-                      </span>
-                    ))}
+              {selectedProvider.serviceTags &&
+                selectedProvider.serviceTags.length > 0 && (
+                  <div className="mb-6">
+                    <h5 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-blue-600" />
+                      Service Tags
+                    </h5>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProvider.serviceTags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Description */}
               <div className="mb-6">
@@ -567,10 +660,19 @@ const AdminDashboard = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     {selectedProvider.documents.governmentId && (
                       <div className="bg-gray-50 rounded-xl p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Government ID</p>
-                        <p className="text-xs text-gray-500 mb-2">{selectedProvider.documents.governmentId.fileName}</p>
-                        <button 
-                          onClick={() => window.open(`http://localhost:5050${selectedProvider.documents.governmentId.filePath}`, '_blank')}
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          Government ID
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {selectedProvider.documents.governmentId.fileName}
+                        </p>
+                        <button
+                          onClick={() =>
+                            window.open(
+                              `http://localhost:5050${selectedProvider.documents.governmentId.filePath}`,
+                              "_blank",
+                            )
+                          }
                           className="text-blue-600 text-sm hover:text-blue-700 flex items-center gap-1"
                         >
                           <Download className="w-3 h-3" />
@@ -580,10 +682,19 @@ const AdminDashboard = () => {
                     )}
                     {selectedProvider.documents.portfolio && (
                       <div className="bg-gray-50 rounded-xl p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Portfolio</p>
-                        <p className="text-xs text-gray-500 mb-2">{selectedProvider.documents.portfolio.fileName}</p>
-                        <button 
-                          onClick={() => window.open(`http://localhost:5050${selectedProvider.documents.portfolio.filePath}`, '_blank')}
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          Portfolio
+                        </p>
+                        <p className="text-xs text-gray-500 mb-2">
+                          {selectedProvider.documents.portfolio.fileName}
+                        </p>
+                        <button
+                          onClick={() =>
+                            window.open(
+                              `http://localhost:5050${selectedProvider.documents.portfolio.filePath}`,
+                              "_blank",
+                            )
+                          }
                           className="text-blue-600 text-sm hover:text-blue-700 flex items-center gap-1"
                         >
                           <Download className="w-3 h-3" />
@@ -596,28 +707,40 @@ const AdminDashboard = () => {
               )}
 
               {/* Reviews Section */}
-              {selectedProvider.reviews && selectedProvider.reviews.length > 0 && (
-                <div className="mb-6">
-                  <h5 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Star className="w-4 h-4 text-blue-600" />
-                    Recent Reviews
-                  </h5>
-                  <div className="space-y-3">
-                    {selectedProvider.reviews.slice(0, 3).map((review, index) => (
-                      <div key={index} className="bg-gray-50 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-medium text-gray-800">{review.userName}</p>
-                            <p className="text-xs text-gray-400">{formatDate(review.createdAt)}</p>
+              {selectedProvider.reviews &&
+                selectedProvider.reviews.length > 0 && (
+                  <div className="mb-6">
+                    <h5 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-blue-600" />
+                      Recent Reviews
+                    </h5>
+                    <div className="space-y-3">
+                      {selectedProvider.reviews
+                        .slice(0, 3)
+                        .map((review, index) => (
+                          <div
+                            key={index}
+                            className="bg-gray-50 rounded-xl p-4"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-medium text-gray-800">
+                                  {review.userName}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {formatDate(review.createdAt)}
+                                </p>
+                              </div>
+                              {renderStars(review.rating)}
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              "{review.review}"
+                            </p>
                           </div>
-                          {renderStars(review.rating)}
-                        </div>
-                        <p className="text-sm text-gray-600">"{review.review}"</p>
-                      </div>
-                    ))}
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4 border-t border-gray-200">
@@ -647,7 +770,11 @@ const AdminDashboard = () => {
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 bg-white rounded-xl shadow-lg border border-gray-200"
         >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </button>
       </div>
 
@@ -664,13 +791,17 @@ const AdminDashboard = () => {
 
         <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
           <img
-            src={`https://ui-avatars.com/api/?name=${admin?.fullName || 'Admin'}&background=3b82f6&color=fff&size=100`}
+            src={`https://ui-avatars.com/api/?name=${admin?.fullName || "Admin"}&background=3b82f6&color=fff&size=100`}
             className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
             alt={admin?.fullName}
           />
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-gray-800 truncate">{admin?.fullName}</p>
-            <p className="text-xs text-blue-600 font-medium capitalize">{admin?.role}</p>
+            <p className="font-semibold text-gray-800 truncate">
+              {admin?.fullName}
+            </p>
+            <p className="text-xs text-blue-600 font-medium capitalize">
+              {admin?.role}
+            </p>
           </div>
         </div>
 
@@ -687,9 +818,13 @@ const AdminDashboard = () => {
                     : "hover:bg-gray-100 text-gray-700"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${
-                  activeTab === item.id ? "text-white" : "text-gray-400 group-hover:text-gray-600"
-                }`} />
+                <Icon
+                  className={`w-5 h-5 ${
+                    activeTab === item.id
+                      ? "text-white"
+                      : "text-gray-400 group-hover:text-gray-600"
+                  }`}
+                />
                 <span className="font-medium">{item.label}</span>
                 {activeTab === item.id && (
                   <ChevronRight className="w-4 h-4 ml-auto" />
@@ -711,7 +846,7 @@ const AdminDashboard = () => {
       {/* Mobile Sidebar */}
       {mobileMenuOpen && (
         <>
-          <div 
+          <div
             className="fixed inset-0 bg-black/50 z-40 md:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
@@ -728,13 +863,17 @@ const AdminDashboard = () => {
 
               <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl mb-6 border border-blue-100">
                 <img
-                  src={`https://ui-avatars.com/api/?name=${admin?.fullName || 'Admin'}&background=3b82f6&color=fff&size=100`}
+                  src={`https://ui-avatars.com/api/?name=${admin?.fullName || "Admin"}&background=3b82f6&color=fff&size=100`}
                   className="w-12 h-12 rounded-full border-2 border-white shadow-md object-cover"
                   alt={admin?.fullName}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{admin?.fullName}</p>
-                  <p className="text-xs text-blue-600 font-medium capitalize">{admin?.role}</p>
+                  <p className="font-semibold text-gray-800 truncate">
+                    {admin?.fullName}
+                  </p>
+                  <p className="text-xs text-blue-600 font-medium capitalize">
+                    {admin?.role}
+                  </p>
                 </div>
               </div>
 
@@ -780,22 +919,22 @@ const AdminDashboard = () => {
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                  {activeTab === "dashboard" 
-                    ? `Welcome back, ${admin?.fullName?.split(' ')[0] || 'Admin'}! 👋`
+                  {activeTab === "dashboard"
+                    ? `Welcome back, ${admin?.fullName?.split(" ")[0] || "Admin"}! 👋`
                     : activeTab === "users"
-                    ? "User Management"
-                    : activeTab === "providers"
-                    ? "Service Providers"
-                    : "Complaints & Support"}
+                      ? "User Management"
+                      : activeTab === "providers"
+                        ? "Service Providers"
+                        : "Complaints & Support"}
                 </h1>
                 <p className="text-sm text-gray-500 mt-1">
                   {activeTab === "dashboard"
                     ? "Here's what's happening with your platform today."
                     : activeTab === "users"
-                    ? "Manage and monitor all platform users"
-                    : activeTab === "providers"
-                    ? "Review and manage service provider applications"
-                    : "Handle user complaints and support tickets"}
+                      ? "Manage and monitor all platform users"
+                      : activeTab === "providers"
+                        ? "Review and manage service provider applications"
+                        : "Handle user complaints and support tickets"}
                 </p>
               </div>
 
@@ -819,7 +958,9 @@ const AdminDashboard = () => {
                     <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
                       <div className="flex items-center gap-2">
                         <Bell className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-semibold text-gray-800">Notifications</h3>
+                        <h3 className="font-semibold text-gray-800">
+                          Notifications
+                        </h3>
                       </div>
                       {unreadCount > 0 && (
                         <button
@@ -838,13 +979,17 @@ const AdminDashboard = () => {
                             <Bell className="w-8 h-8 text-gray-400" />
                           </div>
                           <p className="text-gray-500">No notifications</p>
-                          <p className="text-xs text-gray-400 mt-1">Verification requests will appear here</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Verification requests will appear here
+                          </p>
                         </div>
                       ) : (
                         notifications.map((notification) => (
                           <div
                             key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
+                            onClick={() =>
+                              handleNotificationClick(notification)
+                            }
                             className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${
                               !notification.read ? "bg-blue-50/30" : ""
                             }`}
@@ -854,8 +999,12 @@ const AdminDashboard = () => {
                                 <Shield className="w-5 h-5 text-orange-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800">{notification.title}</p>
-                                <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {notification.title}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {notification.message}
+                                </p>
                                 <p className="text-xs text-gray-400 mt-2">
                                   {formatNotificationTime(notification.time)}
                                 </p>
@@ -905,13 +1054,21 @@ const AdminDashboard = () => {
                       className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow border border-gray-100"
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <div className={`w-12 h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg`}>
+                        <div
+                          className={`w-12 h-12 bg-gradient-to-br ${colors[stat.color]} rounded-xl flex items-center justify-center shadow-lg`}
+                        >
                           <Icon className="w-6 h-6 text-white" />
                         </div>
-                        <span className="text-sm font-medium text-gray-400">{stat.label}</span>
+                        <span className="text-sm font-medium text-gray-400">
+                          {stat.label}
+                        </span>
                       </div>
-                      <h2 className="text-3xl font-bold text-gray-800">{stat.value.toLocaleString()}</h2>
-                      <p className="text-sm text-gray-500 mt-2">Current total</p>
+                      <h2 className="text-3xl font-bold text-gray-800">
+                        {stat.value.toLocaleString()}
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-2">
+                        Current total
+                      </p>
                     </div>
                   );
                 })}
@@ -929,7 +1086,7 @@ const AdminDashboard = () => {
                         Review and approve service provider applications
                       </p>
                     </div>
-                    
+
                     <div className="relative w-full sm:w-64">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
@@ -947,49 +1104,77 @@ const AdminDashboard = () => {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Provider</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 hidden md:table-cell">Contact</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 hidden lg:table-cell">Experience</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Actions</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
+                          Provider
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 hidden md:table-cell">
+                          Contact
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 hidden lg:table-cell">
+                          Experience
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredPendingProviders.map((provider) => (
-                        <tr key={provider._id} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                        <tr
+                          key={provider._id}
+                          className="border-b border-gray-100 hover:bg-gray-50 transition"
+                        >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <img 
-                                src={provider.profileImage || `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`} 
-                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" 
+                              <img
+                                src={
+                                  provider.profileImage ||
+                                  `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`
+                                }
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
                                 alt={provider.firstName}
                               />
                               <div>
-                                <p className="font-medium text-gray-800">{provider.firstName} {provider.lastName}</p>
-                                <p className="text-xs text-blue-600">{provider.category}</p>
+                                <p className="font-medium text-gray-800">
+                                  {provider.firstName} {provider.lastName}
+                                </p>
+                                <p className="text-xs text-blue-600">
+                                  {provider.category}
+                                </p>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 hidden md:table-cell">
                             <div>
-                              <p className="text-sm text-gray-600">{provider.email}</p>
-                              <p className="text-xs text-gray-400">{provider.phone}</p>
+                              <p className="text-sm text-gray-600">
+                                {provider.email}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {provider.phone}
+                              </p>
                             </div>
                           </td>
                           <td className="px-6 py-4 hidden lg:table-cell">
                             <div className="flex items-center gap-1">
                               <Award className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-700">{provider.experience}</span>
+                              <span className="text-sm text-gray-700">
+                                {provider.experience}
+                              </span>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${getStatusColor('pending')}`}>
+                            <span
+                              className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${getStatusColor("pending")}`}
+                            >
                               <Clock className="w-3 h-3" />
                               Pending Review
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <button 
+                            <button
                               onClick={() => handleViewDetails(provider)}
                               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
                             >
@@ -1001,7 +1186,10 @@ const AdminDashboard = () => {
                       ))}
                       {filteredPendingProviders.length === 0 && (
                         <tr>
-                          <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                          <td
+                            colSpan="5"
+                            className="px-6 py-12 text-center text-gray-500"
+                          >
                             No pending verification requests
                           </td>
                         </tr>
@@ -1012,7 +1200,8 @@ const AdminDashboard = () => {
 
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
                   <p className="text-sm text-gray-500">
-                    Showing {filteredPendingProviders.length} pending providers awaiting verification
+                    Showing {filteredPendingProviders.length} pending providers
+                    awaiting verification
                   </p>
                 </div>
               </div>
@@ -1026,31 +1215,50 @@ const AdminDashboard = () => {
           {activeTab === "providers" && <ProviderManagement />}
 
           {/* Complaints Tab Content */}
-          {activeTab === "complaints" && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Complaints & Support</h2>
-              <p className="text-gray-500">Complaint management features coming soon...</p>
-            </div>
-          )}
+          {activeTab === "complaints" && <UserSupport />}
         </div>
       </main>
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         @keyframes scaleIn {
-          from { transform: scale(0.9); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+          from {
+            transform: scale(0.9);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
         }
         @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
         }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
-        .animate-scaleIn { animation: scaleIn 0.3s ease-out; }
-        .animate-slide-in { animation: slideIn 0.3s ease-out; }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+        .animate-scaleIn {
+          animation: scaleIn 0.3s ease-out;
+        }
+        .animate-slide-in {
+          animation: slideIn 0.3s ease-out;
+        }
       `}</style>
     </div>
   );

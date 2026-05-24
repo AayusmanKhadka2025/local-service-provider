@@ -25,10 +25,10 @@ const isProviderAvailableOnDate = (provider, date) => {
   if (!provider?.availableDays || provider.availableDays.length === 0) {
     return false;
   }
-  
+
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const selectedDayName = dayNames[date.getDay()];
-  
+
   return provider.availableDays.includes(selectedDayName);
 };
 
@@ -98,13 +98,32 @@ const createBooking = async (req, res) => {
 
     // Check provider availability on selected date
     if (!isProviderAvailableOnDate(provider, bookingDate)) {
-      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayNames = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+      ];
       const selectedDayName = dayNames[bookingDate.getDay()];
-      const availableDaysFormatted = provider.availableDays?.map(d => {
-        const fullDays = { 'Sun': 'Sunday', 'Mon': 'Monday', 'Tue': 'Tuesday', 'Wed': 'Wednesday', 'Thu': 'Thursday', 'Fri': 'Friday', 'Sat': 'Saturday' };
-        return fullDays[d] || d;
-      }).join(", ") || "Not specified";
-      
+      const availableDaysFormatted =
+        provider.availableDays
+          ?.map((d) => {
+            const fullDays = {
+              Sun: "Sunday",
+              Mon: "Monday",
+              Tue: "Tuesday",
+              Wed: "Wednesday",
+              Thu: "Thursday",
+              Fri: "Friday",
+              Sat: "Saturday",
+            };
+            return fullDays[d] || d;
+          })
+          .join(", ") || "Not specified";
+
       return res.status(400).json({
         success: false,
         message: `Provider is not available on ${selectedDayName}. Available days: ${availableDaysFormatted}`,
@@ -189,27 +208,32 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
   try {
     const userId = req.userId;
-    const bookings = await Booking.find({ "user.userId": userId })
-      .sort({ createdAt: -1 });
-    
+    const bookings = await Booking.find({ "user.userId": userId }).sort({
+      createdAt: -1,
+    });
+
     // Check payment status for each booking
-    const Payment = require('../models/Payment');
-    const bookingsWithPaymentStatus = await Promise.all(bookings.map(async (booking) => {
-      const payment = await Payment.findOne({ 
-        bookingId: booking._id,
-        status: 'success'
-      });
-      
-      return {
-        ...booking.toObject(),
-        paymentCompleted: !!payment,
-        paymentDetails: payment ? {
-          amount: payment.amount,
-          completedAt: payment.completedAt,
-          transactionUuid: payment.transactionUuid
-        } : null
-      };
-    }));
+    const Payment = require("../models/Payment");
+    const bookingsWithPaymentStatus = await Promise.all(
+      bookings.map(async (booking) => {
+        const payment = await Payment.findOne({
+          bookingId: booking._id,
+          status: "success",
+        });
+
+        return {
+          ...booking.toObject(),
+          paymentCompleted: !!payment,
+          paymentDetails: payment
+            ? {
+                amount: payment.amount,
+                completedAt: payment.completedAt,
+                transactionUuid: payment.transactionUuid,
+              }
+            : null,
+        };
+      }),
+    );
 
     const formattedBookings = bookingsWithPaymentStatus.map((booking) => ({
       ...booking,
@@ -670,10 +694,164 @@ const getProviderReviews = async (req, res) => {
   }
 };
 
+// Add this function after addUserReview function
+
+// Edit existing user review
+const editUserReview = async (req, res) => {
+  try {
+    const { bookingId, rating, review } = req.body;
+    const userId = req.userId;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    if (booking.user.userId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized to edit this review",
+      });
+    }
+
+    if (booking.status !== "completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Can only edit reviews for completed bookings",
+      });
+    }
+
+    if (booking.rating === null || booking.rating === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "No review exists for this booking",
+      });
+    }
+
+    // Update the review
+    booking.rating = rating;
+    booking.review = review || "";
+    await booking.save();
+
+    // Recalculate provider's average rating
+    const provider = await Provider.findById(booking.provider.providerId);
+    const allCompletedBookings = await Booking.find({
+      "provider.providerId": provider._id,
+      status: "completed",
+      rating: { $exists: true, $ne: null },
+    });
+
+    const totalRating = allCompletedBookings.reduce(
+      (sum, b) => sum + (b.rating || 0),
+      0,
+    );
+    provider.rating =
+      allCompletedBookings.length > 0
+        ? totalRating / allCompletedBookings.length
+        : 0;
+    await provider.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Review updated successfully",
+    });
+  } catch (error) {
+    console.error("Edit review error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Report a review (for providers)
+const reportReview = async (req, res) => {
+  try {
+    const { bookingId, reason, details } = req.body;
+    const providerId = req.providerId;
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Verify this booking belongs to the provider
+    if (booking.provider.providerId.toString() !== providerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized to report this review",
+      });
+    }
+
+    // Check if there's already a review to report
+    if (!booking.rating || booking.rating === null) {
+      return res.status(400).json({
+        success: false,
+        message: "No review exists for this booking",
+      });
+    }
+
+    // Check if already reported
+    const ReportedReview = require("../models/ReportedReview");
+    const existingReport = await ReportedReview.findOne({
+      bookingId: booking._id,
+      providerId: providerId,
+    });
+
+    if (existingReport) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reported this review",
+      });
+    }
+
+    // IMPORTANT: Get the user details from the booking
+    const user = await User.findById(booking.user.userId);
+
+    // Create report with complete user information
+    const report = await ReportedReview.create({
+      bookingId: booking._id,
+      providerId: providerId,
+      userId: booking.user.userId,
+      userName: user?.fullName || booking.user.name || "Unknown User",
+      userEmail: user?.email || booking.user.email || "No email",
+      reviewText: booking.review || "",
+      rating: booking.rating,
+      reportReason: reason,
+      reportDetails: details || "",
+      status: "pending",
+    });
+
+    console.log(
+      `Review reported successfully: Booking ${bookingId}, User: ${report.userName}, Provider: ${providerId}`,
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Review reported successfully. Admin will review the report.",
+    });
+  } catch (error) {
+    console.error("Report review error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createBooking,
   getUserBookings,
   getProviderBookings,
+  reportReview,
   updateBookingStatus,
   startService,
   completeService,
@@ -681,4 +859,5 @@ module.exports = {
   getProviderNotifications,
   addUserReview,
   getProviderReviews,
+  editUserReview,
 };

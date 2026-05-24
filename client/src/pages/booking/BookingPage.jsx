@@ -11,6 +11,8 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   CheckCircle,
   Shield,
   Clock,
@@ -555,6 +557,7 @@ export default function BookingPage() {
   const [dateError, setDateError] = useState("");
   const [user, setUser] = useState(null);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   // Contact Details State
   const [contactDetails, setContactDetails] = useState({
@@ -1276,10 +1279,30 @@ export default function BookingPage() {
 
             {/* REVIEWS SECTION */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                <MessageSquare className="w-4 h-4 text-blue-600" /> Client
-                Reviews
-              </h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-blue-600" /> Client
+                  Reviews
+                </h3>
+                {reviews.length > 3 && (
+                  <button
+                    onClick={() => setShowAllReviews(!showAllReviews)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition-all duration-300"
+                  >
+                    {showAllReviews ? (
+                      <>
+                        Show Less <ChevronUp className="w-4 h-4" />
+                      </>
+                    ) : (
+                      <>
+                        View All ({reviews.length}){" "}
+                        <ChevronDown className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
               {loadingReviews ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -1291,41 +1314,46 @@ export default function BookingPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {reviews.map((review, index) => (
-                    <div
-                      key={index}
-                      className="border border-gray-100 rounded-xl p-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={getReviewerImage(
-                            review.userEmail,
-                            review.userName,
-                          )}
-                          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
-                          alt={review.userName}
-                        />
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <div>
-                              <h4 className="font-semibold text-gray-800">
-                                {review.userName}
-                              </h4>
-                              <p className="text-xs text-gray-400">
-                                {formatReviewDate(review.createdAt)}
-                              </p>
+                  {(showAllReviews ? reviews : reviews.slice(0, 3)).map(
+                    (review, index) => (
+                      <div
+                        key={index}
+                        className="border border-gray-100 rounded-xl p-4 group hover:shadow-md transition-all duration-300"
+                      >
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={getReviewerImage(
+                              review.userEmail,
+                              review.userName,
+                            )}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                            alt={review.userName}
+                            onError={(e) => {
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(review.userName)}&background=3b82f6&color=fff&size=80`;
+                            }}
+                          />
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start flex-wrap gap-2">
+                              <div>
+                                <h4 className="font-semibold text-gray-800">
+                                  {review.userName}
+                                </h4>
+                                <p className="text-xs text-gray-400">
+                                  {formatReviewDate(review.createdAt)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {renderStars(review.rating)}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              {renderStars(review.rating)}
-                            </div>
+                            <p className="text-sm text-gray-600 mt-2">
+                              "{review.review}"
+                            </p>
                           </div>
-                          <p className="text-sm text-gray-600 mt-2">
-                            "{review.review}"
-                          </p>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               )}
             </div>

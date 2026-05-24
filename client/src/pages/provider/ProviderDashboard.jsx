@@ -60,7 +60,7 @@ const ProviderDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
-  
+
   // Confirmation Modal State
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -74,6 +74,57 @@ const ProviderDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const notificationRef = useRef(null);
+
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportingBooking, setReportingBooking] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [otherReasonText, setOtherReasonText] = useState("");
+
+  // Handle report review
+  const handleReportReview = (booking) => {
+    setReportingBooking(booking);
+    setReportReason("");
+    setReportDetails("");
+    setOtherReasonText("");
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportingBooking) return;
+
+    const finalReason =
+      reportReason === "other" ? otherReasonText : reportReason;
+
+    if (!finalReason || finalReason.trim() === "") {
+      showToast("Please select or enter a reason", "error");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("providerToken");
+      const response = await axios.post(
+        "http://localhost:5050/api/bookings/review/report",
+        {
+          bookingId: reportingBooking._id,
+          reason: finalReason,
+          details: reportDetails,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (response.data.success) {
+        setShowReportModal(false);
+        showToast("Review reported successfully", "success");
+      }
+    } catch (error) {
+      console.error("Error reporting review:", error);
+      showToast(
+        error.response?.data?.message || "Failed to report review",
+        "error",
+      );
+    }
+  };
 
   const [provider, setProvider] = useState({
     firstName: "",
@@ -131,7 +182,13 @@ const ProviderDashboard = () => {
   };
 
   // Show confirmation dialog
-  const showConfirmation = (title, message, action, params, type = "warning") => {
+  const showConfirmation = (
+    title,
+    message,
+    action,
+    params,
+    type = "warning",
+  ) => {
     setConfirmTitle(title);
     setConfirmMessage(message);
     setConfirmAction(() => action);
@@ -538,9 +595,14 @@ const ProviderDashboard = () => {
     showConfirmation(
       "Accept Booking",
       "Are you sure you want to accept this booking request? Once accepted, you will be expected to provide the service as scheduled.",
-      () => updateBookingStatus(bookingId, "confirmed", "Booking Accepted Successfully! ✅"),
+      () =>
+        updateBookingStatus(
+          bookingId,
+          "confirmed",
+          "Booking Accepted Successfully! ✅",
+        ),
       null,
-      "accept"
+      "accept",
     );
   };
 
@@ -551,7 +613,7 @@ const ProviderDashboard = () => {
       "Are you sure you want to reject this booking request? This action cannot be undone.",
       () => updateBookingStatus(bookingId, "rejected", "Booking Rejected ❌"),
       null,
-      "reject"
+      "reject",
     );
   };
 
@@ -618,7 +680,7 @@ const ProviderDashboard = () => {
         }
       },
       null,
-      "start"
+      "start",
     );
   };
 
@@ -685,7 +747,7 @@ const ProviderDashboard = () => {
         }
       },
       null,
-      "complete"
+      "complete",
     );
   };
 
@@ -1206,17 +1268,25 @@ const ProviderDashboard = () => {
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
-            <div className={`bg-gradient-to-r ${
-              confirmType === "accept" ? "from-green-600 to-green-500" :
-              confirmType === "reject" ? "from-red-600 to-red-500" :
-              confirmType === "start" ? "from-green-600 to-green-500" :
-              confirmType === "complete" ? "from-blue-600 to-blue-500" :
-              "from-yellow-600 to-yellow-500"
-            } p-6 text-white`}>
+            <div
+              className={`bg-gradient-to-r ${
+                confirmType === "accept"
+                  ? "from-green-600 to-green-500"
+                  : confirmType === "reject"
+                    ? "from-red-600 to-red-500"
+                    : confirmType === "start"
+                      ? "from-green-600 to-green-500"
+                      : confirmType === "complete"
+                        ? "from-blue-600 to-blue-500"
+                        : "from-yellow-600 to-yellow-500"
+              } p-6 text-white`}
+            >
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-xl font-bold">{confirmTitle}</h3>
-                  <p className="text-white/80 text-sm mt-1">Please confirm your action</p>
+                  <p className="text-white/80 text-sm mt-1">
+                    Please confirm your action
+                  </p>
                 </div>
                 <button
                   onClick={() => setShowConfirmModal(false)}
@@ -1231,8 +1301,12 @@ const ProviderDashboard = () => {
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-yellow-800">Confirmation Required</p>
-                    <p className="text-xs text-yellow-700 mt-1">{confirmMessage}</p>
+                    <p className="text-sm font-medium text-yellow-800">
+                      Confirmation Required
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      {confirmMessage}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1269,6 +1343,21 @@ const ProviderDashboard = () => {
           renderStars={renderStars}
           statusLabels={statusLabels}
           statusColors={statusColors}
+          onReportReview={handleReportReview} // Add this prop
+        />
+      )}
+
+      {showReportModal && reportingBooking && (
+        <ReportModal
+          booking={reportingBooking}
+          onClose={() => setShowReportModal(false)}
+          onSubmit={submitReport}
+          reportReason={reportReason}
+          setReportReason={setReportReason}
+          reportDetails={reportDetails}
+          setReportDetails={setReportDetails}
+          otherReasonText={otherReasonText}
+          setOtherReasonText={setOtherReasonText}
         />
       )}
 
@@ -1786,7 +1875,7 @@ const ProfileField = ({ label, value }) => (
   </div>
 );
 
-// User Modal Component
+// User Modal Component with Report Review
 const UserModal = ({
   user,
   onClose,
@@ -1797,11 +1886,17 @@ const UserModal = ({
   renderStars,
   statusLabels,
   statusColors,
+  onReportReview, // Add this prop
 }) => {
   const statusColor =
     statusColors[user.bookingDetails?.status] || statusColors.pending;
   const statusLabel =
     statusLabels[user.bookingDetails?.status] || user.bookingDetails?.status;
+
+  const hasReview =
+    user.bookingDetails?.status === "completed" &&
+    user.bookingDetails?.rating &&
+    user.bookingDetails?.rating !== null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
@@ -1908,21 +2003,175 @@ const UserModal = ({
             </div>
           </div>
 
-          {user.bookingDetails?.status === "completed" &&
-            user.bookingDetails?.rating && (
-              <div className="border-t border-gray-100 mt-4 pt-4">
-                <h5 className="font-semibold text-gray-800 flex items-center gap-2 mb-2">
+          {/* Customer Review Section with Report Button */}
+          {hasReview && (
+            <div className="border-t border-gray-100 mt-4 pt-4">
+              <div className="flex justify-between items-center mb-2">
+                <h5 className="font-semibold text-gray-800 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-blue-600" />
                   Customer Review
                 </h5>
-                <div className="mb-2">
-                  {renderStars(user.bookingDetails.rating)}
-                </div>
-                <p className="text-sm text-gray-600 italic">
-                  "{user.bookingDetails.review}"
-                </p>
+                <button
+                  onClick={() => onReportReview(user.bookingDetails)}
+                  className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition"
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  Report Review
+                </button>
               </div>
-            )}
+              <div className="mb-2">
+                {renderStars(user.bookingDetails.rating)}
+              </div>
+              <p className="text-sm text-gray-600 italic">
+                "{user.bookingDetails.review}"
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Report Review Modal Component
+const ReportModal = ({
+  booking,
+  onClose,
+  onSubmit,
+  reportReason,
+  setReportReason,
+  reportDetails,
+  setReportDetails,
+  otherReasonText,
+  setOtherReasonText,
+}) => {
+  // Add this helper function inside the component
+  const renderStars = (rating) => {
+    const fullStars = Math.floor(rating);
+    return (
+      <div className="flex items-center gap-0.5">
+        {[...Array(5)].map((_, i) => (
+          <Star
+            key={i}
+            className={`w-3 h-3 ${
+              i < fullStars
+                ? "fill-yellow-400 text-yellow-400"
+                : "text-gray-300"
+            }`}
+          />
+        ))}
+        <span className="text-xs text-gray-600 ml-1">{rating}</span>
+      </div>
+    );
+  };
+
+  const reportReasons = [
+    { value: "inappropriate", label: "Inappropriate content" },
+    { value: "false_info", label: "False information" },
+    { value: "spam", label: "Spam" },
+    { value: "offensive", label: "Offensive language" },
+    { value: "irrelevant", label: "Irrelevant to service" },
+    { value: "other", label: "Other" },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+        <div className="bg-gradient-to-r from-red-600 to-red-500 p-6 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-bold">Report Review</h3>
+              <p className="text-red-100 text-sm mt-1">
+                Please tell us why you're reporting this review
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="p-6">
+          {booking && (
+            <div className="bg-gray-50 rounded-xl p-3 mb-4">
+              <p className="text-xs text-gray-500">
+                Review from {booking.user?.name}:
+              </p>
+              <p className="text-sm text-gray-700 italic mt-1">
+                "{booking.review}"
+              </p>
+              <div className="mt-1">{renderStars(booking.rating)}</div>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Reason for reporting
+            </label>
+            <div className="space-y-2">
+              {reportReasons.map((reason) => (
+                <label
+                  key={reason.value}
+                  className="flex items-center gap-3 cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={reason.value}
+                    checked={reportReason === reason.value}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-4 h-4 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-sm text-gray-700">{reason.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {reportReason === "other" && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Please specify
+              </label>
+              <textarea
+                rows="2"
+                value={otherReasonText}
+                onChange={(e) => setOtherReasonText(e.target.value)}
+                placeholder="Describe why you're reporting this review..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
+              />
+            </div>
+          )}
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional details (Optional)
+            </label>
+            <textarea
+              rows="3"
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              placeholder="Provide any additional context..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSubmit}
+              className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition"
+            >
+              Submit Report
+            </button>
+          </div>
         </div>
       </div>
     </div>

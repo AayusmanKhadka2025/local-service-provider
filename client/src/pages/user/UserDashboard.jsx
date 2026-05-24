@@ -14,6 +14,7 @@ import {
   Clock,
   CheckCircle,
   Star,
+  Edit2,
   PlusCircle,
   X,
   Mail,
@@ -59,6 +60,10 @@ const UserDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState(null);
+  const [showEditReviewModal, setShowEditReviewModal] = useState(false);
+  const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
+  const [editRatingValue, setEditRatingValue] = useState(5);
+  const [editReviewText, setEditReviewText] = useState("");
 
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState({
@@ -212,6 +217,47 @@ const UserDashboard = () => {
   const handleProviderClick = (provider, bookingDetails) => {
     setSelectedProvider({ ...provider, bookingDetails });
     setShowProviderModal(true);
+  };
+
+  // Edit existing review
+  const handleEditReviewClick = (booking) => {
+    setSelectedBookingForEdit(booking);
+    setEditRatingValue(booking.rating);
+    setEditReviewText(booking.review || "");
+    setShowEditReviewModal(true);
+  };
+
+  const submitEditReview = async () => {
+    if (!selectedBookingForEdit) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.put(
+        "http://localhost:5050/api/bookings/review/edit",
+        {
+          bookingId: selectedBookingForEdit._id,
+          rating: editRatingValue,
+          review: editReviewText,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (response.data.success) {
+        const updatedBookings = await axios.get(
+          "http://localhost:5050/api/bookings/user",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        setBookings(updatedBookings.data.bookings);
+        setShowEditReviewModal(false);
+        showToast("Review updated successfully!", "success");
+      }
+    } catch (error) {
+      console.error("Error updating review:", error);
+      showToast(
+        error.response?.data?.message || "Failed to update review",
+        "error",
+      );
+    }
   };
 
   // Open review modal for completed booking
@@ -551,6 +597,7 @@ const UserDashboard = () => {
                 booking={booking}
                 type="history"
                 onReview={() => handleReviewClick(booking)}
+                onEditReview={() => handleEditReviewClick(booking)} // Add this
                 onProviderClick={() =>
                   handleProviderClick(booking.provider, booking)
                 }
@@ -903,6 +950,18 @@ const UserDashboard = () => {
         />
       )}
 
+      {showEditReviewModal && selectedBookingForEdit && (
+        <EditReviewModal
+          booking={selectedBookingForEdit}
+          ratingValue={editRatingValue}
+          setRatingValue={setEditRatingValue}
+          reviewText={editReviewText}
+          setReviewText={setEditReviewText}
+          onSubmit={submitEditReview}
+          onClose={() => setShowEditReviewModal(false)}
+        />
+      )}
+
       {/* Mobile Menu Button */}
       <div className="md:hidden fixed top-4 left-4 z-50">
         <button
@@ -1101,6 +1160,7 @@ const BookingCard = ({
   type,
   onCancel,
   onReview,
+  onEditReview, // Add this
   onProviderClick,
   getProviderImage,
   formatDate,
@@ -1218,12 +1278,20 @@ const BookingCard = ({
             <div className="mt-2">
               {renderStars(booking.rating)}
               {booking.review && (
-                <div className="text-left mt-1 p-2 bg-gray-50 rounded-lg">
+                <div className="text-left mt-2 p-2 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-600 italic">
                     "{booking.review}"
                   </p>
                 </div>
               )}
+              {/* Add Edit Review Button - Fix the onClick */}
+              <button
+                onClick={onEditReview} // Make sure this is passed as prop
+                className="mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center gap-1 mx-auto"
+              >
+                <Edit2 className="w-3 h-3" />
+                Edit Review
+              </button>
             </div>
           )}
         </div>
@@ -1440,6 +1508,92 @@ const ReviewModal = ({
             className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-600 transition"
           >
             Submit Review
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Edit Review Modal Component
+const EditReviewModal = ({
+  booking,
+  ratingValue,
+  setRatingValue,
+  reviewText,
+  setReviewText,
+  onSubmit,
+  onClose,
+}) => {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-bold">Edit Your Review</h3>
+              <p className="text-sm text-blue-100 mt-1">
+                Update your rating and feedback
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-white/20 rounded-lg transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+              <Award className="w-8 h-8 text-blue-600" />
+            </div>
+            <div>
+              <h4 className="font-semibold text-gray-800">
+                {booking.provider.name}
+              </h4>
+              <p className="text-sm text-gray-500">{booking.service}</p>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Rating
+            </label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRatingValue(star)}
+                  className="focus:outline-none transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={`w-8 h-8 ${star <= ratingValue ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Your Review (Optional)
+            </label>
+            <textarea
+              rows="4"
+              value={reviewText}
+              onChange={(e) => setReviewText(e.target.value)}
+              placeholder="Share your experience with this provider..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+            />
+          </div>
+
+          <button
+            onClick={onSubmit}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-blue-600 transition"
+          >
+            Update Review
           </button>
         </div>
       </div>

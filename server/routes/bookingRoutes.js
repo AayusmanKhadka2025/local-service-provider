@@ -13,7 +13,9 @@ const {
   cancelBooking,
   getProviderNotifications,
   addUserReview,
-  getProviderReviews
+  getProviderReviews,
+  editUserReview,
+  reportReview
 } = require('../controllers/bookingController');
 
 // User routes
@@ -27,8 +29,11 @@ router.get('/provider', protectProvider, getProviderBookings);
 router.put('/status', protectProvider, updateBookingStatus);
 router.put('/start', protectProvider, startService);
 router.put('/complete', protectProvider, completeService);
+router.put('/review/edit', protectUser, editUserReview);
 router.get('/notifications', protectProvider, getProviderNotifications);
 router.get('/provider/reviews/:providerId', getProviderReviews);
+router.post('/review/report', protectProvider, reportReview);
+
 
 
 module.exports = router;
