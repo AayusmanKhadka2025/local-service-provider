@@ -38,6 +38,7 @@ import UserChat from "./UserChat";
 import PaymentButton from "../../components/PaymentButton";
 import NotificationBell from "../../components/NotificationBell";
 import { useNotifications } from "../../hooks/useNotifications";
+import UserHelp from "./UserHelp";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -816,39 +817,7 @@ const UserDashboard = () => {
         return <ProfileSettings onProfileUpdate={handleProfileUpdate} />;
 
       case "support":
-        return (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 md:p-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-6">
-              Help & Support
-            </h2>
-            <div className="space-y-6">
-              <div className="border-b pb-6">
-                <h3 className="font-semibold text-gray-800 mb-4">
-                  Frequently Asked Questions
-                </h3>
-                <ul className="space-y-3">
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
-                    • How do I book a service?
-                  </li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
-                    • What is your cancellation policy?
-                  </li>
-                  <li className="text-sm text-gray-600 hover:text-blue-600 cursor-pointer">
-                    • How are service providers verified?
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-800 mb-4">
-                  Contact Support
-                </h3>
-                <button className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition">
-                  Contact Support Team
-                </button>
-              </div>
-            </div>
-          </div>
-        );
+        return <UserHelp />;
 
       default:
         return null;

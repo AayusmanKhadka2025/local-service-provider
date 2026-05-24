@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import {
   HelpCircle,
@@ -27,8 +27,273 @@ import {
   Clock,
   UserCheck,
   Users,
-  Trash2
+  Trash2,
+  Send,
+  Paperclip,
+  RefreshCw
 } from "lucide-react";
+
+// Reply Modal Component
+const ReplyModal = ({ ticket, onClose, onReply }) => {
+  const [replyMessage, setReplyMessage] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentPreviews, setAttachmentPreviews] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleAttachmentChange = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => file.size <= 5 * 1024 * 1024);
+    
+    setAttachments(prev => [...prev, ...validFiles]);
+    
+    validFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachmentPreviews(prev => [...prev, { name: file.name, preview: reader.result }]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (!replyMessage.trim()) {
+      alert("Please enter a reply message");
+      return;
+    }
+    
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("ticketId", ticket._id);
+    formData.append("message", replyMessage);
+    attachments.forEach(file => {
+      formData.append("attachments", file);
+    });
+    
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.post(
+        "http://localhost:5050/api/support/admin/reply",
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data"
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        onReply(response.data.reply);
+        onClose();
+      }
+    } catch (error) {
+      console.error("Error sending reply:", error);
+      alert(error.response?.data?.message || "Failed to send reply");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-hidden animate-scaleIn">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-bold">Reply to Support Ticket</h3>
+              <p className="text-blue-100 text-sm mt-1">Subject: {ticket.subject}</p>
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="p-6 overflow-y-auto">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Reply Message</label>
+            <textarea
+              rows="5"
+              value={replyMessage}
+              onChange={(e) => setReplyMessage(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+              placeholder="Type your reply here..."
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (Optional)</label>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex items-center gap-2"
+            >
+              <Paperclip className="w-4 h-4" />
+              Add Files
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleAttachmentChange}
+              accept="image/*,.pdf,.doc,.docx"
+              multiple
+              className="hidden"
+            />
+            
+            {attachmentPreviews.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {attachmentPreviews.map((att, idx) => (
+                  <div key={idx} className="relative">
+                    {att.preview.startsWith('data:image') ? (
+                      <img src={att.preview} alt={att.name} className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                        <FileText className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeAttachment(idx)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Send Reply
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Ticket Detail Modal
+const TicketDetailModal = ({ ticket, onClose }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden animate-scaleIn">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-6 text-white sticky top-0">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xl font-bold">{ticket.subject}</h3>
+              <p className="text-blue-100 text-sm mt-1">
+                From: {ticket.userName} ({ticket.userType}) • Status: {ticket.status}
+              </p>
+            </div>
+            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+          {/* Original Message */}
+          <div className="mb-6">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="font-semibold text-gray-800">User's Message</h4>
+              <p className="text-xs text-gray-400">{formatDate(ticket.createdAt)}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.message}</p>
+              {ticket.attachments && ticket.attachments.length > 0 && (
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {ticket.attachments.map((att, idx) => (
+                    <a
+                      key={idx}
+                      href={att.filePath}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 text-sm hover:underline flex items-center gap-1"
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      {att.fileName}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Admin Replies */}
+          {ticket.adminReplies && ticket.adminReplies.length > 0 && (
+            <div className="mb-6">
+              <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-blue-600" />
+                Admin Replies
+              </h4>
+              <div className="space-y-4">
+                {ticket.adminReplies.map((reply, idx) => (
+                  <div key={idx} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="font-medium text-blue-800">{reply.adminName}</p>
+                      <p className="text-xs text-blue-400">{formatDate(reply.createdAt)}</p>
+                    </div>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{reply.message}</p>
+                    {reply.attachments && reply.attachments.length > 0 && (
+                      <div className="mt-3 flex gap-2 flex-wrap">
+                        {reply.attachments.map((att, attIdx) => (
+                          <a
+                            key={attIdx}
+                            href={att.filePath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 text-sm hover:underline flex items-center gap-1"
+                          >
+                            <Paperclip className="w-3 h-3" />
+                            {att.fileName}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const UserSupport = () => {
   const [activeSection, setActiveSection] = useState("help");
@@ -39,23 +304,83 @@ const UserSupport = () => {
   const [expandedComplaint, setExpandedComplaint] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
   
+  // Support Tickets State
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [showTicketDetailModal, setShowTicketDetailModal] = useState(false);
+  const [ticketFilterStatus, setTicketFilterStatus] = useState("all");
+  const [ticketSearchTerm, setTicketSearchTerm] = useState("");
+  
   // Delete Confirmation Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Help & Support state (kept for future user-facing implementation)
-  const [expandedFaq, setExpandedFaq] = useState(null);
-  const [contactForm, setContactForm] = useState({
-    name: "",
-    email: "",
-    subject: "",
-    message: ""
-  });
-
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  };
+
+  // Fetch support tickets
+  const fetchSupportTickets = async () => {
+    setLoadingTickets(true);
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.get(
+        "http://localhost:5050/api/support/admin/all",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setSupportTickets(response.data.tickets);
+      }
+    } catch (error) {
+      console.error("Error fetching support tickets:", error);
+      showToast("Failed to load support tickets", "error");
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  // Update ticket status
+  const updateTicketStatus = async (ticketId, status) => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await axios.put(
+        "http://localhost:5050/api/support/admin/status",
+        { ticketId, status },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data.success) {
+        setSupportTickets(prev =>
+          prev.map(ticket =>
+            ticket._id === ticketId ? { ...ticket, status } : ticket
+          )
+        );
+        showToast(`Ticket marked as ${status}`, "success");
+      }
+    } catch (error) {
+      console.error("Error updating ticket status:", error);
+      showToast("Failed to update status", "error");
+    }
+  };
+
+  // Handle reply to ticket
+  const handleReply = (ticket) => {
+    setSelectedTicket(ticket);
+    setShowReplyModal(true);
+  };
+
+  const onReplySent = (reply) => {
+    setSupportTickets(prev =>
+      prev.map(ticket =>
+        ticket._id === selectedTicket._id
+          ? { ...ticket, adminReplies: [...(ticket.adminReplies || []), reply], status: "in_progress" }
+          : ticket
+      )
+    );
+    showToast("Reply sent successfully", "success");
   };
 
   // Open delete confirmation modal
@@ -64,7 +389,6 @@ const UserSupport = () => {
     setShowDeleteModal(true);
   };
 
-  // Close delete confirmation modal
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
     setDeleteTarget(null);
@@ -83,7 +407,6 @@ const UserSupport = () => {
         );
 
         if (response.data.success) {
-          console.log("Fetched reports:", response.data.reports);
           setReportedReviews(response.data.reports);
         }
       } catch (error) {
@@ -96,6 +419,8 @@ const UserSupport = () => {
 
     if (activeSection === "complaints") {
       fetchReportedReviews();
+    } else if (activeSection === "help") {
+      fetchSupportTickets();
     }
   }, [activeSection]);
 
@@ -128,7 +453,7 @@ const UserSupport = () => {
     }
   };
 
-  // Handle delete review (admin action) - With confirmation modal
+  // Handle delete review
   const handleDeleteReview = async () => {
     if (!deleteTarget) return;
     
@@ -142,10 +467,8 @@ const UserSupport = () => {
       );
 
       if (response.data.success) {
-        // Update report status to action_taken
         await updateReportStatus(deleteTarget.reportId, "action_taken");
         
-        // Refresh the reported reviews list
         const refreshResponse = await axios.get(
           "http://localhost:5050/api/admin/reported-reviews",
           { headers: { Authorization: `Bearer ${token}` } }
@@ -175,13 +498,31 @@ const UserSupport = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // Statistics for badges
+  // Filter tickets
+  const filteredTickets = supportTickets.filter(ticket => {
+    const matchesSearch = ticketSearchTerm === "" ||
+      ticket.subject.toLowerCase().includes(ticketSearchTerm.toLowerCase()) ||
+      ticket.userName.toLowerCase().includes(ticketSearchTerm.toLowerCase()) ||
+      ticket.userEmail.toLowerCase().includes(ticketSearchTerm.toLowerCase());
+    const matchesStatus = ticketFilterStatus === "all" || ticket.status === ticketFilterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Statistics
   const stats = {
     pending: reportedReviews.filter(r => r.status === "pending").length,
     reviewed: reportedReviews.filter(r => r.status === "reviewed").length,
     actionTaken: reportedReviews.filter(r => r.status === "action_taken").length,
     dismissed: reportedReviews.filter(r => r.status === "dismissed").length,
     total: reportedReviews.length
+  };
+
+  const ticketStats = {
+    pending: supportTickets.filter(t => t.status === "pending").length,
+    in_progress: supportTickets.filter(t => t.status === "in_progress").length,
+    resolved: supportTickets.filter(t => t.status === "resolved").length,
+    closed: supportTickets.filter(t => t.status === "closed").length,
+    total: supportTickets.length
   };
 
   const getStatusColor = (status) => {
@@ -196,6 +537,16 @@ const UserSupport = () => {
         return "bg-gray-100 text-gray-700 border-gray-200";
       default:
         return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getTicketStatusColor = (status) => {
+    switch (status) {
+      case "pending": return "bg-yellow-100 text-yellow-700";
+      case "in_progress": return "bg-blue-100 text-blue-700";
+      case "resolved": return "bg-green-100 text-green-700";
+      case "closed": return "bg-gray-100 text-gray-700";
+      default: return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -255,7 +606,6 @@ const UserSupport = () => {
     });
   };
 
-  // Get user avatar with fallback
   const getUserAvatar = (userName, userAvatar) => {
     if (userAvatar && userAvatar !== "" && userAvatar !== "http://localhost:5050null") {
       return userAvatar;
@@ -263,18 +613,11 @@ const UserSupport = () => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'User')}&background=3b82f6&color=fff&size=80&bold=true`;
   };
 
-  // Get provider avatar with fallback
   const getProviderAvatar = (providerName, providerAvatar) => {
     if (providerAvatar && providerAvatar !== "" && providerAvatar !== "http://localhost:5050null") {
       return providerAvatar;
     }
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(providerName || 'Provider')}&background=2563eb&color=fff&size=80&bold=true`;
-  };
-
-  const handleContactSubmit = (e) => {
-    e.preventDefault();
-    showToast("Support request sent! We'll get back to you soon.", "success");
-    setContactForm({ name: "", email: "", subject: "", message: "" });
   };
 
   return (
@@ -349,6 +692,23 @@ const UserSupport = () => {
         </div>
       )}
 
+      {/* Reply Modal */}
+      {showReplyModal && selectedTicket && (
+        <ReplyModal
+          ticket={selectedTicket}
+          onClose={() => setShowReplyModal(false)}
+          onReply={onReplySent}
+        />
+      )}
+
+      {/* Ticket Detail Modal */}
+      {showTicketDetailModal && selectedTicket && (
+        <TicketDetailModal
+          ticket={selectedTicket}
+          onClose={() => setShowTicketDetailModal(false)}
+        />
+      )}
+
       {/* Toast Notification */}
       {toast.show && (
         <div className="fixed top-5 right-5 z-50 animate-slide-in">
@@ -393,77 +753,154 @@ const UserSupport = () => {
         </button>
       </div>
 
-      {/* Help & Support Section - Kept as is, will be used for users later */}
+      {/* Help & Support Section - Ticket Management */}
       {activeSection === "help" && (
-        <div className="space-y-8">
-          {/* Quick Help Banner */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-8 text-white">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <HelpCircle className="w-8 h-8" />
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-6 text-white">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
+                <MessageCircle className="w-7 h-7" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold">How can we help you?</h2>
-                <p className="text-blue-100 mt-1">Find answers to common questions or contact our support team</p>
+                <h2 className="text-xl font-bold">Support Tickets</h2>
+                <p className="text-blue-100 text-sm">Manage and respond to user and provider support requests</p>
               </div>
             </div>
           </div>
 
-          {/* FAQ Section - Placeholder content */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-yellow-50 rounded-xl p-3 border border-yellow-200">
+              <p className="text-2xl font-bold text-yellow-700">{ticketStats.pending}</p>
+              <p className="text-xs text-yellow-600">Pending</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+              <p className="text-2xl font-bold text-blue-700">{ticketStats.in_progress}</p>
+              <p className="text-xs text-blue-600">In Progress</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3 border border-green-200">
+              <p className="text-2xl font-bold text-green-700">{ticketStats.resolved}</p>
+              <p className="text-xs text-green-600">Resolved</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+              <p className="text-2xl font-bold text-gray-700">{ticketStats.total}</p>
+              <p className="text-xs text-gray-600">Total</p>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by subject, user name, or email..."
+                  value={ticketSearchTerm}
+                  onChange={(e) => setTicketSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
               <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Frequently Asked Questions</h3>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">Quick answers to common questions</p>
-            </div>
-            <div className="divide-y divide-gray-100">
-              <div className="p-8 text-center text-gray-500">
-                <p>Help & Support content will be available for users soon.</p>
+                <Filter className="w-4 h-4 text-gray-400" />
+                <select
+                  value={ticketFilterStatus}
+                  onChange={(e) => setTicketFilterStatus(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <button
+                  onClick={fetchSupportTickets}
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refresh
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Contact Support Form - Placeholder */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-800">Contact Support</h3>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">Get in touch with our support team</p>
+          {/* Tickets List */}
+          {loadingTickets ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-            <div className="p-8 text-center text-gray-500">
-              <p>Support form will be available for users soon.</p>
+          ) : filteredTickets.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-12 text-center">
+              <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No support tickets</h3>
+              <p className="text-gray-500">When users or providers submit support requests, they will appear here.</p>
             </div>
-          </div>
-
-          {/* Contact Info Cards */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
-              <div className="flex items-center gap-3 mb-3">
-                <Mail className="w-5 h-5 text-blue-600" />
-                <h4 className="font-semibold text-gray-800">Email Support</h4>
-              </div>
-              <p className="text-sm text-gray-600">For non-urgent inquiries</p>
-              <a href="mailto:servease2082@gmail.com" className="text-blue-600 font-medium hover:underline block mt-2">
-                servease2082@gmail.com
-              </a>
-              <p className="text-xs text-gray-400 mt-3">Response within 24-48 hours</p>
+          ) : (
+            <div className="space-y-4">
+              {filteredTickets.map((ticket) => (
+                <div key={ticket._id} className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300">
+                  <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex flex-wrap justify-between items-start gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${getTicketStatusColor(ticket.status)}`}>
+                            {ticket.status}
+                          </span>
+                          <span className="text-xs text-gray-400">#{ticket._id.slice(-8)}</span>
+                          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">{ticket.userType}</span>
+                        </div>
+                        <h4 className="font-semibold text-gray-800">{ticket.subject}</h4>
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          <div className="flex items-center gap-1">
+                            <User className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-600">{ticket.userName}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-500">{ticket.userEmail}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-gray-400" />
+                            <span className="text-xs text-gray-400">{formatDate(ticket.createdAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleReply(ticket)}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition flex items-center gap-1"
+                        >
+                          <Send className="w-3 h-3" />
+                          Reply
+                        </button>
+                        {ticket.status !== "resolved" && ticket.status !== "closed" && (
+                          <button
+                            onClick={() => updateTicketStatus(ticket._id, "resolved")}
+                            className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition flex items-center gap-1"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            Resolve
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setShowTicketDetailModal(true);
+                          }}
+                          className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-50 transition"
+                        >
+                          <Eye className="w-3 h-3" />
+                          View
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
-              <div className="flex items-center gap-3 mb-3">
-                <Phone className="w-5 h-5 text-green-600" />
-                <h4 className="font-semibold text-gray-800">Phone Support</h4>
-              </div>
-              <p className="text-sm text-gray-600">For urgent matters</p>
-              <a href="tel:+9779812021764" className="text-green-600 font-medium hover:underline block mt-2">
-                +977 9812021764
-              </a>
-              <p className="text-xs text-gray-400 mt-3">Mon-Fri, 9AM - 6PM</p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

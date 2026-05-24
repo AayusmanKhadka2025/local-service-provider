@@ -16,6 +16,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const { router: chatRoutes, saveMessage } = require('./routes/chatRoutes');
 const accountRoutes = require('./routes/accountRoutes');
+const supportRoutes = require('./routes/supportRoutes');
+
 
 
 // Import Google Auth Service
@@ -65,6 +67,8 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/chat", chatRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/support', supportRoutes);
+
 
 
 // Health check
