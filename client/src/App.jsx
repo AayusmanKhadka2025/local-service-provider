@@ -19,7 +19,6 @@ import VerifyProviderOTP from "./pages/auth/VerifyProviderOTP";
 import PendingVerification from "./pages/provider/PendingVerification";
 import TermsAndConditions from "./pages/auth/TermsAndConditions";
 
-
 function App() {
   return (
     <Router>
@@ -40,15 +39,8 @@ function App() {
           }
         />
 
-        {/* Service Listing Route - Protected */}
-        <Route
-          path="/service-listing"
-          element={
-            <ProtectedRoute userType="user">
-              <ServiceListing />
-            </ProtectedRoute>
-          }
-        />
+        {/* Service Listing Route - PUBLIC (no login required) */}
+        <Route path="/service-listing" element={<ServiceListing />} />
 
         {/* Booking Page Route - Protected */}
         <Route
@@ -97,7 +89,6 @@ function App() {
         <Route path="/pending-verification" element={<PendingVerification />} />
 
         <Route path="/terms" element={<TermsAndConditions />} />
-
       </Routes>
     </Router>
   );

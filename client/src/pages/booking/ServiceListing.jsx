@@ -4,7 +4,6 @@ import axios from "axios";
 import {
   Search,
   Star,
-  Heart,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -36,14 +35,17 @@ export default function ServiceListing() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRating, setSelectedRating] = useState("Any");
+  const [selectedLocation, setSelectedLocation] = useState("All");
   const [priceMin, setPriceMin] = useState("");
   const [priceMax, setPriceMax] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recommended");
   const [showFilters, setShowFilters] = useState(false);
-  const [favoriteServices, setFavoriteServices] = useState([]);
   const [user, setUser] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
+
+  // Location options
+  const locations = ["All", "Kathmandu", "Bhaktapur", "Lalitpur"];
 
   // Fetch providers from backend
   useEffect(() => {
@@ -69,6 +71,24 @@ export default function ServiceListing() {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  // Read search params from sessionStorage (from landing page)
+  useEffect(() => {
+    const savedLocation = sessionStorage.getItem("searchLocation");
+    const savedServiceType = sessionStorage.getItem("searchServiceType");
+    
+    if (savedLocation && savedLocation !== "") {
+      setSelectedLocation(savedLocation);
+      // Clear after reading
+      sessionStorage.removeItem("searchLocation");
+    }
+    
+    if (savedServiceType && savedServiceType !== "") {
+      setSelectedCategory(savedServiceType);
+      // Clear after reading
+      sessionStorage.removeItem("searchServiceType");
     }
   }, []);
 
@@ -104,12 +124,6 @@ export default function ServiceListing() {
   ];
   const ratings = ["Any", "4.5", "4.0"];
 
-  const toggleFavorite = (id) => {
-    setFavoriteServices((prev) =>
-      prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id],
-    );
-  };
-
   const handleImageError = (providerId) => {
     setImageErrors((prev) => ({
       ...prev,
@@ -125,6 +139,13 @@ export default function ServiceListing() {
       return provider.profileImage;
     }
     return `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`;
+  };
+
+  // Helper function to check if provider serves the selected location
+  const matchesLocation = (provider) => {
+    if (selectedLocation === "All") return true;
+    if (!provider.serviceArea) return false;
+    return provider.serviceArea.toLowerCase().includes(selectedLocation.toLowerCase());
   };
 
   const filteredProviders = providers.filter((provider) => {
@@ -144,8 +165,9 @@ export default function ServiceListing() {
         provider.serviceTags.some((tag) =>
           tag.toLowerCase().includes(searchQuery.toLowerCase()),
         ));
+    const matchesLocationFilter = matchesLocation(provider);
 
-    return matchesCategory && matchesRating && matchesPrice && matchesSearch;
+    return matchesCategory && matchesRating && matchesPrice && matchesSearch && matchesLocationFilter;
   });
 
   const sortedProviders = [...filteredProviders].sort((a, b) => {
@@ -188,7 +210,16 @@ export default function ServiceListing() {
   };
 
   const handleViewDetails = (provider) => {
+    // Navigate to details page - this route is protected
     navigate(`/provider-details/${provider._id}`, { state: { provider } });
+  };
+
+  const clearAllFilters = () => {
+    setSelectedCategory("All");
+    setSelectedRating("Any");
+    setSelectedLocation("All");
+    setPriceMin("");
+    setPriceMax("");
   };
 
   if (loading) {
@@ -216,17 +247,26 @@ export default function ServiceListing() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
-            {/* Notification Bell */}
-            <NotificationBell userId={user?._id} />
+            {/* Notification Bell - only show if user is logged in */}
+            {user && <NotificationBell userId={user?._id} />}
 
-            {/* User Profile */}
-            <Link to="/dashboard" className="flex items-center gap-2">
-              <img
-                src={user?.avatar || "https://i.pravatar.cc/100?u=user"}
-                alt="profile"
-                className="w-10 h-10 rounded-full object-cover border-2 border-blue-100 shadow-sm cursor-pointer hover:scale-105 transition"
-              />
-            </Link>
+            {/* User Profile - only show if user is logged in */}
+            {user ? (
+              <Link to="/dashboard" className="flex items-center gap-2">
+                <img
+                  src={user?.avatar || "https://i.pravatar.cc/100?u=user"}
+                  alt="profile"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-blue-100 shadow-sm cursor-pointer hover:scale-105 transition"
+                />
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="px-4 py-2 text-sm font-medium rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 transition shadow-md"
+              >
+                Login
+              </Link>
+            )}
 
             {/* Mobile Filter */}
             <button
@@ -268,18 +308,6 @@ export default function ServiceListing() {
               Search
             </button>
           </div>
-
-          {/* Popular Tags */}
-          <p className="text-sm text-gray-400 mt-6">
-            Popular:{" "}
-            <span className="text-blue-600 cursor-pointer">
-              Emergency Plumbing
-            </span>
-            , <span className="text-blue-600 cursor-pointer">AC Repair</span>,{" "}
-            <span className="text-blue-600 cursor-pointer">House Cleaning</span>
-            ,{" "}
-            <span className="text-blue-600 cursor-pointer">Wall Painting</span>
-          </p>
         </div>
       </section>
 
@@ -303,16 +331,35 @@ export default function ServiceListing() {
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-semibold text-gray-800 text-lg">Filters</h3>
                 <button
-                  onClick={() => {
-                    setSelectedCategory("All");
-                    setSelectedRating("Any");
-                    setPriceMin("");
-                    setPriceMax("");
-                  }}
+                  onClick={clearAllFilters}
                   className="text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
                   Clear all
                 </button>
+              </div>
+
+              {/* Location Filter */}
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Service Location
+                </h4>
+                <div className="space-y-2">
+                  {locations.map((loc) => (
+                    <label
+                      key={loc}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <input
+                        type="radio"
+                        checked={selectedLocation === loc}
+                        onChange={() => setSelectedLocation(loc)}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-600">{loc}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {/* Categories */}
@@ -424,41 +471,27 @@ export default function ServiceListing() {
                 >
                   <div className="p-5">
                     {/* Header */}
-                    <div className="flex justify-between items-start">
-                      <div className="flex gap-3">
-                        <img
-                          src={getProviderImage(provider)}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-blue-100"
-                          alt={`${provider.firstName} ${provider.lastName}`}
-                          onError={() => handleImageError(provider._id)}
-                        />
-                        <div>
-                          <h4 className="font-semibold text-gray-800">
-                            {provider.firstName} {provider.lastName}
-                          </h4>
-                          <p className="text-xs text-blue-600">
-                            {provider.category}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <CheckCircle className="w-3 h-3 text-green-500" />
-                            <span className="text-xs text-green-600">
-                              Verified
-                            </span>
-                          </div>
+                    <div className="flex gap-3">
+                      <img
+                        src={getProviderImage(provider)}
+                        className="w-14 h-14 rounded-full object-cover border-2 border-blue-100"
+                        alt={`${provider.firstName} ${provider.lastName}`}
+                        onError={() => handleImageError(provider._id)}
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-800">
+                          {provider.firstName} {provider.lastName}
+                        </h4>
+                        <p className="text-xs text-blue-600">
+                          {provider.category}
+                        </p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                          <span className="text-xs text-green-600">
+                            Verified
+                          </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => toggleFavorite(provider._id)}
-                        className="hover:bg-gray-100 p-1 rounded-full transition"
-                      >
-                        <Heart
-                          className={`w-5 h-5 transition ${
-                            favoriteServices.includes(provider._id)
-                              ? "fill-red-500 text-red-500"
-                              : "text-gray-400 hover:text-red-500"
-                          }`}
-                        />
-                      </button>
                     </div>
 
                     {/* Rating */}

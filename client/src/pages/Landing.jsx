@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   MapPin,
   Search,
@@ -33,6 +34,10 @@ import michaelImage from "../assets/Michael.jpg";
 import emilyImage from "../assets/Emily.jpg";
 
 export default function Landing() {
+  const navigate = useNavigate();
+  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedServiceType, setSelectedServiceType] = useState("");
+
   const services = [
     {
       name: "Plumbing",
@@ -140,6 +145,15 @@ export default function Landing() {
     return colors[color] || colors.blue;
   };
 
+  const handleFindServices = () => {
+    // Store search params in sessionStorage to use on service listing page
+    if (selectedLocation || selectedServiceType) {
+      sessionStorage.setItem("searchLocation", selectedLocation);
+      sessionStorage.setItem("searchServiceType", selectedServiceType);
+    }
+    navigate("/service-listing");
+  };
+
   return (
     <div className="w-full bg-white">
       {/* ================= NAVBAR ================= */}
@@ -212,39 +226,56 @@ export default function Landing() {
             {/* Search Box */}
             <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 max-w-xl border border-gray-100">
               <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                {/* Location Input */}
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-blue-500 transition">
-                  <MapPin className="w-5 h-5 text-gray-400 mr-3" />
-                  <input
-                    type="text"
-                    placeholder="Your Location"
-                    className="w-full bg-transparent outline-none text-gray-700 placeholder-gray-400"
-                  />
+                {/* Location Dropdown */}
+                <div className="relative">
+                  <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-blue-500 transition">
+                    <MapPin className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
+                    <select
+                      value={selectedLocation}
+                      onChange={(e) => setSelectedLocation(e.target.value)}
+                      className="w-full bg-transparent outline-none text-gray-700 appearance-none cursor-pointer"
+                    >
+                      <option value="">Select Location</option>
+                      <option value="Kathmandu">Kathmandu</option>
+                      <option value="Lalitpur">Lalitpur</option>
+                      <option value="Bhaktapur">Bhaktapur</option>
+                    </select>
+                    <ChevronRight className="w-4 h-4 text-gray-400 rotate-90 flex-shrink-0 ml-2" />
+                  </div>
                 </div>
 
-                {/* Service Type Input */}
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-blue-500 transition">
-                  <Search className="w-5 h-5 text-gray-400 mr-3" />
-                  <input
-                    type="text"
-                    placeholder="Service Type"
-                    className="w-full bg-transparent outline-none text-gray-700 placeholder-gray-400"
-                  />
+                {/* Service Type Dropdown */}
+                <div className="relative">
+                  <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-blue-500 transition">
+                    <Search className="w-5 h-5 text-gray-400 mr-3 flex-shrink-0" />
+                    <select
+                      value={selectedServiceType}
+                      onChange={(e) => setSelectedServiceType(e.target.value)}
+                      className="w-full bg-transparent outline-none text-gray-700 appearance-none cursor-pointer"
+                    >
+                      <option value="">Select Service</option>
+                      <option value="Plumbing">Plumbing</option>
+                      <option value="Electrical">Electrical</option>
+                      <option value="Carpentry">Carpentry</option>
+                      <option value="Painting">Painting</option>
+                      <option value="Cleaning">Cleaning</option>
+                    </select>
+                    <ChevronRight className="w-4 h-4 text-gray-400 rotate-90 flex-shrink-0 ml-2" />
+                  </div>
                 </div>
               </div>
 
-              <button className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3.5 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition-all shadow-md hover:shadow-lg">
+              <button
+                onClick={handleFindServices}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3.5 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition-all shadow-md hover:shadow-lg"
+              >
                 <Search className="w-4 h-4" />
                 Find Service Providers
               </button>
             </div>
 
-            {/* CTA Buttons */}
+            {/* CTA Buttons - Removed Book a Service button */}
             <div className="flex flex-wrap gap-4">
-              <button className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2">
-                Book a Service
-                <ArrowRight className="w-4 h-4" />
-              </button>
               <Link to="/register">
                 <button className="px-8 py-3.5 border-2 border-blue-600 text-blue-600 rounded-xl font-medium hover:bg-blue-50 transition-all flex items-center gap-2">
                   Register as Provider
@@ -297,6 +328,10 @@ export default function Landing() {
               return (
                 <div
                   key={service.name}
+                  onClick={() => {
+                    setSelectedServiceType(service.name);
+                    handleFindServices();
+                  }}
                   className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all p-8 border border-gray-100 hover:border-transparent cursor-pointer"
                 >
                   <div
