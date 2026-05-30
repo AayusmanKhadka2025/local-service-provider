@@ -25,31 +25,25 @@ const Login = () => {
     }));
   };
 
-  // Add this useEffect to check for location state
   useEffect(() => {
     if (location.state?.message) {
       setMessage({
         type: "success",
         text: location.state.message,
       });
-      // Pre-fill email if provided
       if (location.state?.email) {
         setFormData((prev) => ({ ...prev, email: location.state.email }));
       }
-      // Clear the location state to prevent showing again on refresh
       window.history.replaceState({}, document.title);
     }
   }, [location]);
 
-  // Google Login Handler
   const handleGoogleLogin = () => {
     setGoogleLoading(true);
-    // Store a flag to indicate this is a login attempt
     localStorage.setItem("googleAuthIntent", "login");
     window.location.href = "http://localhost:5050/api/auth/google";
   };
 
-  // Unified Login API Call - Tries User first, then Provider, then Admin
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -89,6 +83,15 @@ const Login = () => {
         }
       } catch (userError) {
         console.log("User login failed, trying provider login...");
+
+        // Check if user login failed due to blocked account
+        if (
+          userError.response?.status === 403 &&
+          userError.response?.data?.isBlocked
+        ) {
+          navigate("/suspended");
+          return;
+        }
       }
 
       // If user login fails, try provider login
@@ -122,12 +125,20 @@ const Login = () => {
       } catch (providerError) {
         console.log("Provider login failed:", providerError.response?.data);
 
+        // Check if error is due to blocked account
+        if (
+          providerError.response?.status === 403 &&
+          providerError.response?.data?.isBlocked
+        ) {
+          navigate("/suspended");
+          return;
+        }
+
         // Check if error is due to unverified account
         if (
           providerError.response?.status === 403 &&
           providerError.response?.data?.requiresVerification
         ) {
-          // Redirect to pending verification page
           navigate("/pending-verification", {
             state: {
               email: providerError.response?.data?.email || formData.email,
@@ -139,7 +150,7 @@ const Login = () => {
 
         console.log("Provider login failed, trying admin login...");
       }
-      
+
       // If provider login fails, try admin login
       try {
         const adminResponse = await axios.post(
@@ -207,7 +218,6 @@ const Login = () => {
       {/* LEFT - LOGIN FORM */}
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-          
           <h2 className="text-2xl font-bold text-center">Welcome Back</h2>
           <p className="text-sm text-gray-500 text-center mt-1">
             Log in to your account to continue
@@ -339,7 +349,6 @@ const Login = () => {
             <div className="flex-grow h-px bg-gray-300"></div>
           </div>
 
-          {/* Google Login Button - Improved */}
           <button
             onClick={handleGoogleLogin}
             disabled={googleLoading}

@@ -23,6 +23,9 @@ import {
   X,
   Trash2,
   AlertCircle,
+  Ban,
+  Unlock,
+  AlertTriangle,
 } from "lucide-react";
 
 const ProviderManagement = () => {
@@ -32,10 +35,40 @@ const ProviderManagement = () => {
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [showProviderModal, setShowProviderModal] = useState(false);
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [blocking, setBlocking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmParams, setConfirmParams] = useState(null);
+  const [confirmTitle, setConfirmTitle] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmType, setConfirmType] = useState("");
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  };
+
+  // Show confirmation dialog
+  const showConfirmation = (title, message, action, params, type = "warning") => {
+    setConfirmTitle(title);
+    setConfirmMessage(message);
+    setConfirmAction(() => action);
+    setConfirmParams(params);
+    setConfirmType(type);
+    setShowConfirmModal(true);
+  };
+
+  // Execute confirmed action
+  const executeConfirmedAction = async () => {
+    if (confirmAction) {
+      await confirmAction(confirmParams);
+    }
+    setShowConfirmModal(false);
+    setConfirmAction(null);
+    setConfirmParams(null);
   };
 
   // Fetch providers
@@ -64,59 +97,103 @@ const ProviderManagement = () => {
     }
   };
 
+  // Block/Unblock Provider
+  const handleBlockUnblockProvider = async (providerId, currentStatus) => {
+    const action = currentStatus ? "unblock" : "block";
+    const actionText = currentStatus ? "unblock" : "block";
+    const actionVerb = currentStatus ? "unblocking" : "blocking";
+    
+    showConfirmation(
+      `${currentStatus ? "Unblock" : "Block"} Provider`,
+      `Are you sure you want to ${action} this provider? ${currentStatus ? "They will be able to log in again." : "They will not be able to log in until unblocked."}`,
+      async () => {
+        setBlocking(true);
+        try {
+          const token = localStorage.getItem("adminToken");
+          const endpoint = currentStatus 
+            ? `http://localhost:5050/api/admin/providers/${providerId}/unblock`
+            : `http://localhost:5050/api/admin/providers/${providerId}/block`;
+          const response = await axios.put(endpoint, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (response.data.success) {
+            await fetchProviders();
+            if (showProviderModal && selectedProvider?._id === providerId) {
+              setSelectedProvider(prev => ({ ...prev, isBlocked: !currentStatus }));
+            }
+            showToast(`Provider ${actionText}ed successfully!`, "success");
+          }
+        } catch (error) {
+          console.error(`Error ${actionVerb} provider:`, error);
+          showToast(`Failed to ${actionText} provider`, "error");
+        } finally {
+          setBlocking(false);
+        }
+      },
+      { providerId, currentStatus },
+      currentStatus ? "success" : "warning"
+    );
+  };
+
   const handleDeleteProvider = async (providerId) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this provider? This action cannot be undone.",
-      )
-    )
-      return;
+    showConfirmation(
+      "Delete Provider",
+      "Are you sure you want to delete this provider? This action cannot be undone. All provider data, including bookings and reviews, will be permanently removed.",
+      async () => {
+        setDeleting(true);
+        try {
+          const token = localStorage.getItem("adminToken");
+          const response = await axios.delete(
+            `http://localhost:5050/api/admin/providers/${providerId}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
 
-    try {
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.delete(
-        `http://localhost:5050/api/admin/providers/${providerId}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-
-      if (response.data.success) {
-        await fetchProviders();
-        setShowProviderModal(false);
-        showToast("Provider deleted successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Error deleting provider:", error);
-      showToast("Failed to delete provider", "error");
-    }
+          if (response.data.success) {
+            await fetchProviders();
+            setShowProviderModal(false);
+            showToast("Provider deleted successfully!", "success");
+          }
+        } catch (error) {
+          console.error("Error deleting provider:", error);
+          showToast("Failed to delete provider", "error");
+        } finally {
+          setDeleting(false);
+        }
+      },
+      { providerId },
+      "danger"
+    );
   };
 
   const handleDeleteReview = async (providerId, reviewId) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this review? This action cannot be undone.",
-      )
-    )
-      return;
+    showConfirmation(
+      "Delete Review",
+      "Are you sure you want to delete this review? This action cannot be undone.",
+      async () => {
+        try {
+          const token = localStorage.getItem("adminToken");
+          const response = await axios.delete(
+            `http://localhost:5050/api/admin/providers/${providerId}/reviews/${reviewId}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
 
-    try {
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.delete(
-        `http://localhost:5050/api/admin/providers/${providerId}/reviews/${reviewId}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-
-      if (response.data.success) {
-        await fetchProviders();
-        const updatedProvider = providers.find((p) => p._id === providerId);
-        if (updatedProvider && showProviderModal) {
-          setSelectedProvider(updatedProvider);
+          if (response.data.success) {
+            await fetchProviders();
+            const updatedProvider = providers.find((p) => p._id === providerId);
+            if (updatedProvider && showProviderModal) {
+              setSelectedProvider(updatedProvider);
+            }
+            showToast("Review deleted successfully!", "success");
+          }
+        } catch (error) {
+          console.error("Error deleting review:", error);
+          showToast("Failed to delete review", "error");
         }
-        showToast("Review deleted successfully!", "success");
-      }
-    } catch (error) {
-      console.error("Error deleting review:", error);
-      showToast("Failed to delete review", "error");
-    }
+      },
+      { providerId, reviewId },
+      "danger"
+    );
   };
 
   const handleViewDetails = (provider) => {
@@ -152,19 +229,23 @@ const ProviderManagement = () => {
       verified: "bg-green-100 text-green-700 border border-green-200",
       rejected: "bg-red-100 text-red-700 border border-red-200",
       pending: "bg-orange-100 text-orange-700 border border-orange-200",
+      blocked: "bg-gray-100 text-gray-700 border border-gray-200",
     };
     return colors[status] || colors.pending;
   };
 
   // Categorize providers
   const verifiedProviders = providers.filter(
-    (provider) => provider.isVerified === true,
+    (provider) => provider.isVerified === true && !provider.isBlocked,
   );
   const rejectedProviders = providers.filter(
     (provider) => provider.isActive === false && !provider.isVerified,
   );
   const pendingProviders = providers.filter(
-    (provider) => !provider.isVerified && provider.isActive !== false,
+    (provider) => !provider.isVerified && provider.isActive !== false && !provider.isBlocked,
+  );
+  const blockedProviders = providers.filter(
+    (provider) => provider.isBlocked === true,
   );
 
   // For display - all providers for searching (but will be shown in categorized sections)
@@ -182,11 +263,13 @@ const ProviderManagement = () => {
   const filteredVerified = searchFiltered(verifiedProviders);
   const filteredRejected = searchFiltered(rejectedProviders);
   const filteredPending = searchFiltered(pendingProviders);
+  const filteredBlocked = searchFiltered(blockedProviders);
 
   // Statistics
   const totalActiveProviders = verifiedProviders.length;
   const totalRejectedProviders = rejectedProviders.length;
   const totalPendingProviders = pendingProviders.length;
+  const totalBlockedProviders = blockedProviders.length;
 
   if (loading) {
     return (
@@ -198,6 +281,72 @@ const ProviderManagement = () => {
 
   return (
     <>
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden animate-scaleIn">
+            <div className={`bg-gradient-to-r ${
+              confirmType === "danger" ? "from-red-600 to-red-500" :
+              confirmType === "warning" ? "from-orange-600 to-orange-500" :
+              confirmType === "success" ? "from-green-600 to-green-500" :
+              "from-blue-600 to-blue-500"
+            } p-6 text-white`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold">{confirmTitle}</h3>
+                  <p className="text-white/80 text-sm mt-1">Please confirm your action</p>
+                </div>
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="p-1 hover:bg-white/20 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className={`rounded-xl p-4 mb-6 ${
+                confirmType === "danger" ? "bg-red-50 border border-red-200" :
+                confirmType === "warning" ? "bg-orange-50 border border-orange-200" :
+                "bg-yellow-50 border border-yellow-200"
+              }`}>
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={`w-5 h-5 ${
+                    confirmType === "danger" ? "text-red-600" :
+                    confirmType === "warning" ? "text-orange-600" :
+                    "text-yellow-600"
+                  } mt-0.5 flex-shrink-0`} />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Confirmation Required</p>
+                    <p className="text-xs text-gray-600 mt-1">{confirmMessage}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeConfirmedAction}
+                  className={`flex-1 px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
+                    confirmType === "danger" ? "bg-red-600 text-white hover:bg-red-700" :
+                    confirmType === "warning" ? "bg-orange-600 text-white hover:bg-orange-700" :
+                    "bg-green-600 text-white hover:bg-green-700"
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toast.show && (
         <div className="fixed top-5 right-5 z-50 animate-slide-in">
@@ -267,6 +416,12 @@ const ProviderManagement = () => {
                       ({selectedProvider.totalReviews || 0} reviews)
                     </span>
                   </div>
+                  {selectedProvider.isBlocked && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 mt-2 bg-gray-100 text-gray-700 rounded-lg text-xs">
+                      <Ban className="w-3 h-3" />
+                      Blocked
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -324,7 +479,6 @@ const ProviderManagement = () => {
                         {selectedProvider.serviceArea || "Not specified"}
                       </span>
                     </p>
-                    {/* Member Since - Only show for verified providers, not for rejected */}
                     {selectedProvider.isVerified && (
                       <p className="text-sm flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
@@ -433,7 +587,7 @@ const ProviderManagement = () => {
                 </div>
               )}
 
-              {/* Reviews Section with Delete Button */}
+              {/* Reviews Section */}
               {selectedProvider.reviews &&
                 selectedProvider.reviews.length > 0 && (
                   <div className="mb-6">
@@ -478,18 +632,47 @@ const ProviderManagement = () => {
                   </div>
                 )}
 
-              {/* Delete Button */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
+              {/* Action Buttons */}
+              <div className="mt-6 pt-4 border-t border-gray-200 space-y-3">
+                {/* Block/Unblock Button */}
+                <button
+                  onClick={() => handleBlockUnblockProvider(selectedProvider._id, selectedProvider.isBlocked)}
+                  disabled={blocking}
+                  className={`w-full px-4 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2 ${
+                    selectedProvider.isBlocked
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-orange-600 text-white hover:bg-orange-700"
+                  } disabled:opacity-50`}
+                >
+                  {selectedProvider.isBlocked ? (
+                    <>
+                      <Unlock className="w-5 h-5" />
+                      Unblock Provider Account
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-5 h-5" />
+                      Block Provider Account
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-gray-500 text-center">
+                  {selectedProvider.isBlocked 
+                    ? "Provider will be able to log in and accept bookings after unblocking."
+                    : "Blocked providers cannot log in and will see a suspension message."}
+                </p>
+
+                {/* Delete Button */}
                 <button
                   onClick={() => handleDeleteProvider(selectedProvider._id)}
-                  className="w-full px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition flex items-center justify-center gap-2"
+                  disabled={deleting}
+                  className="w-full px-4 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Trash2 className="w-5 h-5" />
-                  Delete Provider Account
+                  Delete Provider Account (Permanent)
                 </button>
-                <p className="text-xs text-gray-500 text-center mt-3">
-                  This action cannot be undone. All provider data will be
-                  permanently removed.
+                <p className="text-xs text-gray-500 text-center">
+                  This action cannot be undone. All provider data will be permanently removed.
                 </p>
               </div>
             </div>
@@ -526,7 +709,7 @@ const ProviderManagement = () => {
         {/* Statistics Summary */}
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
           <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                 <span className="text-sm text-gray-600">Active (Verified)</span>
@@ -546,6 +729,13 @@ const ProviderManagement = () => {
                 <span className="text-sm text-gray-600">Pending</span>
                 <span className="text-sm font-semibold text-orange-600">
                   {totalPendingProviders}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">Blocked</span>
+                <span className="text-sm font-semibold text-gray-600">
+                  {totalBlockedProviders}
                 </span>
               </div>
             </div>
@@ -568,6 +758,7 @@ const ProviderManagement = () => {
               <ProviderTable
                 providers={filteredVerified}
                 onViewDetails={handleViewDetails}
+                onBlockUnblock={handleBlockUnblockProvider}
                 onDelete={handleDeleteProvider}
                 formatDate={formatDate}
                 getStatusColor={getStatusColor}
@@ -590,11 +781,36 @@ const ProviderManagement = () => {
               <ProviderTable
                 providers={filteredRejected}
                 onViewDetails={handleViewDetails}
+                onBlockUnblock={handleBlockUnblockProvider}
                 onDelete={handleDeleteProvider}
                 formatDate={formatDate}
                 getStatusColor={getStatusColor}
                 showMemberSince={false}
                 isRejected={true}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Blocked Providers Section */}
+        {filteredBlocked.length > 0 && (
+          <div className="border-b border-gray-200">
+            <div className="px-6 py-3 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Ban className="w-4 h-4" />
+                Blocked Providers - {filteredBlocked.length}
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <ProviderTable
+                providers={filteredBlocked}
+                onViewDetails={handleViewDetails}
+                onBlockUnblock={handleBlockUnblockProvider}
+                onDelete={handleDeleteProvider}
+                formatDate={formatDate}
+                getStatusColor={getStatusColor}
+                showMemberSince={false}
+                isBlocked={true}
               />
             </div>
           </div>
@@ -613,6 +829,7 @@ const ProviderManagement = () => {
               <ProviderTable
                 providers={filteredPending}
                 onViewDetails={handleViewDetails}
+                onBlockUnblock={handleBlockUnblockProvider}
                 onDelete={handleDeleteProvider}
                 formatDate={formatDate}
                 getStatusColor={getStatusColor}
@@ -625,6 +842,7 @@ const ProviderManagement = () => {
 
         {filteredVerified.length === 0 &&
           filteredRejected.length === 0 &&
+          filteredBlocked.length === 0 &&
           filteredPending.length === 0 && (
             <div className="px-6 py-12 text-center text-gray-500">
               No providers found matching your search
@@ -679,12 +897,14 @@ const ProviderManagement = () => {
 const ProviderTable = ({
   providers,
   onViewDetails,
+  onBlockUnblock,
   onDelete,
   formatDate,
   getStatusColor,
   showMemberSince = true,
   isRejected = false,
   isPending = false,
+  isBlocked = false,
 }) => {
   return (
     <table className="w-full">
@@ -719,22 +939,24 @@ const ProviderTable = ({
         {providers.map((provider) => {
           let status = "";
           let statusColor = "";
+          let statusIcon = null;
 
-          if (
-            isRejected ||
-            (!provider.isVerified && provider.isActive === false)
-          ) {
+          if (isBlocked || provider.isBlocked) {
+            status = "Blocked";
+            statusColor = "bg-gray-100 text-gray-700 border-gray-200";
+            statusIcon = <Ban className="w-3 h-3" />;
+          } else if (isRejected || (!provider.isVerified && provider.isActive === false)) {
             status = "Rejected";
             statusColor = "bg-red-100 text-red-700 border-red-200";
-          } else if (
-            isPending ||
-            (!provider.isVerified && provider.isActive !== false)
-          ) {
+            statusIcon = <XCircle className="w-3 h-3" />;
+          } else if (isPending || (!provider.isVerified && provider.isActive !== false)) {
             status = "Pending";
             statusColor = "bg-orange-100 text-orange-700 border-orange-200";
+            statusIcon = <Clock className="w-3 h-3" />;
           } else {
             status = "Verified";
             statusColor = "bg-green-100 text-green-700 border-green-200";
+            statusIcon = <CheckCircle className="w-3 h-3" />;
           }
 
           return (
@@ -751,6 +973,9 @@ const ProviderTable = ({
                     }
                     className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
                     alt={provider.firstName}
+                    onError={(e) => {
+                      e.target.src = `https://ui-avatars.com/api/?name=${provider.firstName}+${provider.lastName}&background=3b82f6&color=fff&size=100`;
+                    }}
                   />
                   <div>
                     <p className="font-medium text-gray-800">
@@ -791,9 +1016,7 @@ const ProviderTable = ({
                 <span
                   className={`inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-full ${statusColor}`}
                 >
-                  {status === "Verified" && <CheckCircle className="w-3 h-3" />}
-                  {status === "Rejected" && <XCircle className="w-3 h-3" />}
-                  {status === "Pending" && <Clock className="w-3 h-3" />}
+                  {statusIcon}
                   {status}
                 </span>
               </td>
@@ -805,6 +1028,17 @@ const ProviderTable = ({
                     title="View Details"
                   >
                     <Eye className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onBlockUnblock(provider._id, provider.isBlocked)}
+                    className={`p-2 rounded-lg transition ${
+                      provider.isBlocked 
+                        ? "bg-green-50 text-green-600 hover:bg-green-100" 
+                        : "bg-orange-50 text-orange-600 hover:bg-orange-100"
+                    }`}
+                    title={provider.isBlocked ? "Unblock Provider" : "Block Provider"}
+                  >
+                    {provider.isBlocked ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => onDelete(provider._id)}

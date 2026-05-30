@@ -11,6 +11,10 @@ const {
   deleteUser,
   deleteProvider,
   deleteProviderReview,
+  blockUser,
+  unblockUser,
+  blockProvider,
+  unblockProvider,
 } = require("../controllers/adminController");
 
 // Public route
@@ -23,9 +27,16 @@ router.get("/providers", getAllProviders);
 router.get("/users", getAllUsers);
 router.put("/providers/:providerId/verify", protectAdmin, verifyProvider);
 router.put("/providers/:providerId/reject", protectAdmin, rejectProvider);
-router.delete("/users/:userId", deleteUser);
 
+// User management routes
+router.delete("/users/:userId", deleteUser);
+router.put("/users/:userId/block", blockUser);
+router.put("/users/:userId/unblock", unblockUser);
+
+// Provider management routes
 router.delete("/providers/:providerId", deleteProvider);
+router.put("/providers/:providerId/block", blockProvider);
+router.put("/providers/:providerId/unblock", unblockProvider);
 router.delete("/providers/:providerId/reviews/:reviewId", deleteProviderReview);
 
 // Add at the top with other imports

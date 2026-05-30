@@ -18,6 +18,7 @@ import PaymentFailure from "./pages/payment/PaymentFailure";
 import VerifyProviderOTP from "./pages/auth/VerifyProviderOTP";
 import PendingVerification from "./pages/provider/PendingVerification";
 import TermsAndConditions from "./pages/auth/TermsAndConditions";
+import SuspendedAccount from "./pages/auth/SuspendedAccount";
 
 function App() {
   return (
@@ -89,6 +90,8 @@ function App() {
         <Route path="/pending-verification" element={<PendingVerification />} />
 
         <Route path="/terms" element={<TermsAndConditions />} />
+
+        <Route path="/suspended" element={<SuspendedAccount />} />
       </Routes>
     </Router>
   );

@@ -628,6 +628,16 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // Check if user is blocked - SPECIFIC MESSAGE FOR SUSPENDED ACCOUNTS
+    if (user.isBlocked) {
+      console.log("Blocked user attempted login:", email);
+      return res.status(403).json({
+        success: false,
+        message: "Your account is suspended. Please contact support for assistance.",
+        isBlocked: true
+      });
+    }
+
     // Check if user is a Google account
     if (user.isGoogleAccount) {
       return res.status(401).json({
@@ -665,6 +675,7 @@ const loginUser = async (req, res) => {
       landmark: user.landmark || "",
       avatar: getFullAvatarUrl(user.avatar),
       createdAt: user.createdAt,
+      isBlocked: user.isBlocked,
     };
 
     res.status(200).json({

@@ -103,6 +103,10 @@ const providerSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
   rating: {
     type: Number,
     default: 0,

@@ -454,6 +454,155 @@ const createInitialAdmin = async () => {
   }
 };
 
+// Add these new functions after the existing ones
+
+// Block User
+const blockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.isBlocked = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "User blocked successfully",
+      user: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        isBlocked: user.isBlocked
+      }
+    });
+  } catch (error) {
+    console.error("Block user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Unblock User
+const unblockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    user.isBlocked = false;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "User unblocked successfully",
+      user: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        isBlocked: user.isBlocked
+      }
+    });
+  } catch (error) {
+    console.error("Unblock user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Block Provider
+const blockProvider = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: "Provider not found",
+      });
+    }
+
+    provider.isBlocked = true;
+    await provider.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Provider blocked successfully",
+      provider: {
+        _id: provider._id,
+        firstName: provider.firstName,
+        lastName: provider.lastName,
+        email: provider.email,
+        isBlocked: provider.isBlocked
+      }
+    });
+  } catch (error) {
+    console.error("Block provider error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Unblock Provider
+const unblockProvider = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const provider = await Provider.findById(providerId);
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: "Provider not found",
+      });
+    }
+
+    provider.isBlocked = false;
+    await provider.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Provider unblocked successfully",
+      provider: {
+        _id: provider._id,
+        firstName: provider.firstName,
+        lastName: provider.lastName,
+        email: provider.email,
+        isBlocked: provider.isBlocked
+      }
+    });
+  } catch (error) {
+    console.error("Unblock provider error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Update module exports
 module.exports = {
   adminLogin,
   getDashboardStats,
@@ -465,4 +614,8 @@ module.exports = {
   createInitialAdmin,
   deleteProvider,        
   deleteProviderReview,
+  blockUser,
+  unblockUser,
+  blockProvider,
+  unblockProvider,
 };

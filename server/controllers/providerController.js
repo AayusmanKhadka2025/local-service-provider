@@ -527,7 +527,7 @@ const registerProvider = async (req, res) => {
   }
 };
 
-// Provider Login - Check if verified
+// Provider Login - Check if verified and not blocked
 const providerLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -561,6 +561,16 @@ const providerLogin = async (req, res) => {
       });
     }
 
+    // Check if account is blocked - SPECIFIC MESSAGE FOR SUSPENDED ACCOUNTS
+    if (provider.isBlocked) {
+      console.log("Blocked provider attempted login:", email);
+      return res.status(403).json({
+        success: false,
+        message: "Your account is suspended. Please contact support for assistance.",
+        isBlocked: true
+      });
+    }
+
     // Check if account is active
     if (!provider.isActive) {
       return res.status(403).json({
@@ -569,7 +579,7 @@ const providerLogin = async (req, res) => {
       });
     }
 
-    // Check if provider is verified - CRITICAL: Return specific error for unverified
+    // Check if provider is verified
     if (!provider.isVerified) {
       return res.status(403).json({
         success: false,
@@ -619,6 +629,7 @@ const providerLogin = async (req, res) => {
       completedJobs: provider.completedJobs,
       isActive: provider.isActive,
       isVerified: provider.isVerified,
+      isBlocked: provider.isBlocked,
     };
 
     res.status(200).json({
