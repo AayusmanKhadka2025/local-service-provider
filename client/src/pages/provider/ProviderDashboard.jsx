@@ -38,6 +38,7 @@ import ProviderChat from "./ProviderChat";
 import ProviderEarning from "./ProviderEarning";
 import ProviderSetting from "./ProviderSetting";
 import ProviderHelp from "./ProviderHelp";
+import io from "socket.io-client";
 
 const ProviderDashboard = () => {
   const navigate = useNavigate();
@@ -944,12 +945,16 @@ const ProviderDashboard = () => {
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [providerChats, setProviderChats] = useState([]);
   const [loadingChats, setLoadingChats] = useState(false);
+  const [socket, setSocket] = useState(null); // ADD THIS LINE
 
   // Fetch provider chats
+  // Add a debug log
   const fetchProviderChats = async () => {
     try {
       setLoadingChats(true);
       const token = localStorage.getItem("providerToken");
+      console.log("Fetching provider chats with token:", token ? "Yes" : "No");
+
       const response = await axios.get(
         "http://localhost:5050/api/chat/provider/chats",
         {
@@ -957,8 +962,13 @@ const ProviderDashboard = () => {
         },
       );
 
+      console.log("Chats response:", response.data);
+
       if (response.data.success) {
+        console.log("Chats found:", response.data.chats.length);
         setProviderChats(response.data.chats);
+      } else {
+        console.log("No chats or error:", response.data.message);
       }
     } catch (error) {
       console.error("Error fetching chats:", error);
@@ -967,25 +977,89 @@ const ProviderDashboard = () => {
     }
   };
 
+  // useEffect(() => {
+  //   const handleChatDeleted = () => {
+  //     fetchProviderChats(); // Refresh chat list
+  //   };
+
+  //   window.addEventListener("chatDeleted", handleChatDeleted);
+
+  //   return () => {
+  //     window.removeEventListener("chatDeleted", handleChatDeleted);
+  //   };
+  // }, []);
+
   useEffect(() => {
     if (activeTab === "messages") {
       fetchProviderChats();
     }
   }, [activeTab]);
 
+  // Add socket block status listener
+  useEffect(() => {
+    if (socket) {
+      const handleBlockStatus = (data) => {
+        fetchProviderChats(); // Refresh to show updated status
+      };
+
+      socket.on("chat_block_status", handleBlockStatus);
+
+      return () => {
+        socket.off("chat_block_status", handleBlockStatus);
+      };
+    }
+  }, [socket]);
+
+  // Uncomment and fix the socket initialization:
+  useEffect(() => {
+    const storedProvider = JSON.parse(localStorage.getItem("provider") || "{}");
+    if (!storedProvider._id) return;
+
+    const newSocket = io("http://localhost:5050", {
+      transports: ["websocket"],
+    });
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      newSocket.emit("register", {
+        userId: storedProvider._id,
+        userType: "provider",
+      });
+    });
+
+    return () => newSocket.disconnect();
+  }, []);
+
+  // Add this after the socket init:
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = () => {
+      fetchProviderChats();
+    };
+
+    socket.on("new_message", handleNewMessage);
+    socket.on("message_notification", fetchProviderChats);
+    socket.on("messages_read", fetchProviderChats);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+      socket.off("message_notification", fetchProviderChats);
+      socket.off("messages_read", fetchProviderChats);
+    };
+  }, [socket]);
+
   // Open chat with provider
   const openChat = (chat) => {
-    const booking = bookings.find((b) => b._id === chat.bookingId);
-    if (booking) {
-      setSelectedChat(chat);
-      setSelectedChatUser({
-        _id: chat.participants.user.userId,
-        name: chat.participants.user.name,
-        avatar: chat.participants.user.avatar,
-        email: "",
-      });
-      setShowChat(true);
-    }
+    // bookings is an object keyed by status - no need to look up a booking
+    setSelectedChat(chat);
+    setSelectedChatUser({
+      _id: chat.participants.user.userId,
+      name: chat.participants.user.name,
+      avatar: chat.participants.user.avatar,
+      email: "",
+    });
+    setShowChat(true);
   };
 
   const getButtonColor = (type) => {
@@ -1105,7 +1179,10 @@ const ProviderDashboard = () => {
               <ProviderChat
                 chat={selectedChat}
                 user={selectedChatUser}
-                onClose={() => setShowChat(false)}
+                onClose={() => {
+                  setShowChat(false);
+                  fetchProviderChats();
+                }}
               />
             ) : (
               <div className="p-6">
@@ -1126,51 +1203,64 @@ const ProviderDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {providerChats.map((chat) => (
-                      <div
-                        key={chat._id}
-                        onClick={() => {
-                          setSelectedChat(chat);
-                          setSelectedChatUser({
-                            _id: chat.participants.user.userId,
-                            name: chat.participants.user.name,
-                            avatar: chat.participants.user.avatar,
-                            email: "",
-                          });
-                          setShowChat(true);
-                        }}
-                        className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition cursor-pointer border border-gray-100"
-                      >
-                        <img
-                          src={
-                            chat.participants.user.avatar ||
-                            `https://ui-avatars.com/api/?name=${chat.participants.user.name}&background=3b82f6&color=fff&size=80`
-                          }
-                          className="w-12 h-12 rounded-full object-cover"
-                          alt={chat.participants.user.name}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <h3 className="font-semibold text-gray-800 truncate">
-                              {chat.participants.user.name}
-                            </h3>
-                            <span className="text-xs text-gray-400">
-                              {new Date(
-                                chat.lastMessageTime,
-                              ).toLocaleDateString()}
-                            </span>
+                    {providerChats.map((chat) => {
+                      return (
+                        <div
+                          key={chat._id}
+                          onClick={() => {
+                            setSelectedChat(chat);
+                            setSelectedChatUser({
+                              _id: chat.participants.user.userId,
+                              name: chat.participants.user.name,
+                              avatar: chat.participants.user.avatar,
+                              email: "",
+                            });
+                            setShowChat(true);
+                            if (socket)
+                              socket.emit("join_chat", { chatId: chat._id });
+                          }}
+                          className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition cursor-pointer border border-gray-100"
+                        >
+                          <img
+                            src={
+                              chat.participants.user.avatar ||
+                              `https://ui-avatars.com/api/?name=${chat.participants.user.name}&background=3b82f6&color=fff&size=80`
+                            }
+                            className="w-12 h-12 rounded-full object-cover"
+                            alt={chat.participants.user.name}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-semibold text-gray-800 truncate">
+                                {chat.participants.user.name}
+                              </h3>
+                              <span className="text-xs text-gray-400">
+                                {new Date(
+                                  chat.lastMessageTime,
+                                ).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500 truncate">
+                              {chat.lastMessage}
+                            </p>
+                            {/* Expiry notice */}
+                            {chat.expiresIn !== null && chat.expiresIn <= 3 && (
+                              <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {chat.expiresIn === 0
+                                  ? "Expires today"
+                                  : `Expires in ${chat.expiresIn} day${chat.expiresIn > 1 ? "s" : ""}`}
+                              </p>
+                            )}
                           </div>
-                          <p className="text-sm text-gray-500 truncate">
-                            {chat.lastMessage}
-                          </p>
+                          {chat.unreadCount > 0 && (
+                            <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
+                              {chat.unreadCount}
+                            </span>
+                          )}
                         </div>
-                        {chat.unreadCount > 0 && (
-                          <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                            {chat.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

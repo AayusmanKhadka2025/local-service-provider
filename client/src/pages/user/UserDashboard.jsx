@@ -39,6 +39,7 @@ import PaymentButton from "../../components/PaymentButton";
 import NotificationBell from "../../components/NotificationBell";
 import { useNotifications } from "../../hooks/useNotifications";
 import UserHelp from "./UserHelp";
+import io from "socket.io-client";
 
 const UserDashboard = () => {
   const navigate = useNavigate();
@@ -624,6 +625,7 @@ const UserDashboard = () => {
   const [selectedChatProvider, setSelectedChatProvider] = useState(null);
   const [userChats, setUserChats] = useState([]);
   const [loadingChats, setLoadingChats] = useState(false);
+  const [socket, setSocket] = useState(null); // ADD THIS LINE
 
   // Fetch user chats
   const fetchUserChats = async () => {
@@ -644,11 +646,80 @@ const UserDashboard = () => {
     }
   };
 
+  // useEffect(() => {
+  //   const handleChatDeleted = () => {
+  //     fetchUserChats(); // Refresh chat list
+  //   };
+
+  //   window.addEventListener("chatDeleted", handleChatDeleted);
+
+  //   return () => {
+  //     window.removeEventListener("chatDeleted", handleChatDeleted);
+  //   };
+  // }, []);
+
   useEffect(() => {
     if (activeTab === "messages") {
       fetchUserChats();
     }
   }, [activeTab]);
+
+  // Then add this useEffect for socket initialization (add after the existing useEffects)
+  // Socket initialization for chat updates
+  useEffect(() => {
+    const newSocket = io("http://localhost:5050", {
+      transports: ["websocket"],
+    });
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      console.log("Socket connected for chat updates");
+      if (user?._id) {
+        newSocket.emit("register", { userId: user._id, userType: "user" });
+      }
+    });
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [user?._id]);
+
+  // Add socket block status listener (add after the socket initialization)
+  useEffect(() => {
+    if (socket) {
+      const handleBlockStatus = (data) => {
+        fetchUserChats(); // Refresh to show updated status
+      };
+
+      socket.on("chat_block_status", handleBlockStatus);
+
+      return () => {
+        socket.off("chat_block_status", handleBlockStatus);
+      };
+    }
+  }, [socket]);
+
+  // After your existing socket initialization useEffect
+  // Update the new_message handler in UserDashboard:
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = () => {
+      // Always refresh — covers both list-view updates AND
+      // re-appearing chats after deletion
+      fetchUserChats();
+    };
+
+    socket.on("new_message", handleNewMessage);
+    socket.on("message_notification", fetchUserChats);
+    socket.on("messages_read", fetchUserChats);
+
+    return () => {
+      socket.off("new_message", handleNewMessage);
+      socket.off("message_notification", fetchUserChats);
+      socket.off("messages_read", fetchUserChats);
+    };
+  }, [socket]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -732,7 +803,10 @@ const UserDashboard = () => {
                   category:
                     selectedChatProvider?.category || "Service Provider",
                 }}
-                onClose={() => setShowChat(false)}
+                onClose={() => {
+                  setShowChat(false);
+                  fetchUserChats();
+                }}
               />
             ) : (
               <div className="p-6">
@@ -772,6 +846,8 @@ const UserDashboard = () => {
                                 "Service Provider",
                             });
                             setShowChat(true);
+                            if (socket)
+                              socket.emit("join_chat", { chatId: chat._id });
                           }}
                           className="flex items-center gap-4 p-4 rounded-xl hover:bg-gray-50 transition cursor-pointer border border-gray-100"
                         >
@@ -797,6 +873,15 @@ const UserDashboard = () => {
                             <p className="text-sm text-gray-500 truncate">
                               {chat.lastMessage}
                             </p>
+                            {/* Expiry notice */}
+                            {chat.expiresIn !== null && chat.expiresIn <= 3 && (
+                              <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {chat.expiresIn === 0
+                                  ? "Expires today"
+                                  : `Expires in ${chat.expiresIn} day${chat.expiresIn > 1 ? "s" : ""}`}
+                              </p>
+                            )}
                           </div>
                           {chat.unreadCount > 0 && (
                             <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
